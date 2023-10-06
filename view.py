@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSi
 from PyQt5.QtGui import QDrag, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QBoxLayout, QFrame, \
     QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QStyleFactory, QGridLayout, QMessageBox, \
-    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QLayout, QAbstractScrollArea
+    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QLayout, QAbstractScrollArea, QApplication
 
 
 class View(QMainWindow):
@@ -322,44 +322,58 @@ class Task(QFrame):
     def get_children(self):
         return [self.container_layout.itemAt(i).widget() for i in range(self.container_layout.count())]
 
+    def mousePressEvent(self, e):
+        b = e.buttons()
+        if b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton:
+            # track beginning of mouse hold and only start drag when it goes far enough
+            self.dragStartPosition = e.pos()
+
     def mouseMoveEvent(self, e):
         b = e.buttons()
+
+        # only process dragging while button held
+        if not(b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton):
+            return
+
+        # only process dragging once the mouse has moved far enough
+        if ((e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6):
+            return
+
         # handle drag
-        if b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton:
-            drag = QDrag(self)
+        drag = QDrag(self)
 
-            # have image of this task follow the cursor
-            pixmap = QPixmap(self.size())
-            self.render(pixmap)
-            drag.setPixmap(pixmap)
+        # have image of this task follow the cursor
+        pixmap = QPixmap(self.size())
+        self.render(pixmap)
+        drag.setPixmap(pixmap)
 
-            # duplicate task into new task
-            if b == Qt.MiddleButton:
-                dupe = self.view.controller.duplicate_task_id(self.df_id)
-                self.undo = (b, dupe)
+        # duplicate task into new task
+        if b == Qt.MiddleButton:
+            dupe = self.view.controller.duplicate_task_id(self.df_id)
+            self.undo = (b, dupe)
 
-                mime = QMimeData()
-                mime.setText(dupe)
-                drag.setMimeData(mime)
-                drag.exec_(Qt.CopyAction)
-            # creates a new reference to this task
-            elif b == Qt.RightButton:
-                self.undo = (b,)
+            mime = QMimeData()
+            mime.setText(dupe)
+            drag.setMimeData(mime)
+            drag.exec_(Qt.CopyAction)
+        # creates a new reference to this task
+        elif b == Qt.RightButton:
+            self.undo = (b,)
 
-                mime = QMimeData()
-                drag.setMimeData(mime)
-                mime.setText(self.df_id)
-                drag.exec_(Qt.LinkAction)
-            # move the reference to this task
-            elif b == Qt.LeftButton:
-                self.undo = (b, self.owner,
-                             self.owner.container_layout.indexOf(self)+1 if isinstance(self.owner, Shelf) else 0)
-                self.view.controller.task_removed(self)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            mime.setText(self.df_id)
+            drag.exec_(Qt.LinkAction)
+        # move the reference to this task
+        elif b == Qt.LeftButton:
+            self.undo = (b, self.owner,
+                         self.owner.container_layout.indexOf(self)+1 if isinstance(self.owner, Shelf) else 0)
+            self.view.controller.task_removed(self)
 
-                mime = QMimeData()
-                drag.setMimeData(mime)
-                mime.setText(self.df_id)
-                drag.exec_(Qt.MoveAction)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            mime.setText(self.df_id)
+            drag.exec_(Qt.MoveAction)
 
     # reverses changes made when initializing a drag in case drop fails
     def undo_drag(self):
@@ -635,43 +649,57 @@ class Shelf(QFrame):
     def get_children(self):
         return [self.container_layout.itemAt(i).widget() for i in range(self.container_layout.count())]
 
+    def mousePressEvent(self, e):
+        b = e.buttons()
+        if b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton:
+            # track beginning of mouse hold and only start drag when it goes far enough
+            self.dragStartPosition = e.pos()
+
     def mouseMoveEvent(self, e):
         b = e.buttons()
+
+        # only process dragging while button held
+        if not (b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton):
+            return
+
+        # only process dragging once the mouse has moved far enough
+        if ((e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6):
+            return
+
         # handle drag
-        if b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton:
-            drag = QDrag(self)
+        drag = QDrag(self)
 
-            # have image of this task follow the cursor
-            pixmap = QPixmap(self.size())
-            self.render(pixmap)
-            drag.setPixmap(pixmap)
+        # have image of this task follow the cursor
+        pixmap = QPixmap(self.size())
+        self.render(pixmap)
+        drag.setPixmap(pixmap)
 
-            # duplicate shelf into new shelf
-            if b == Qt.MiddleButton:
-                dupe = self.view.controller.duplicate_shelf_id(self.df_id)
-                self.undo = (b, dupe)
+        # duplicate shelf into new shelf
+        if b == Qt.MiddleButton:
+            dupe = self.view.controller.duplicate_shelf_id(self.df_id)
+            self.undo = (b, dupe)
 
-                mime = QMimeData()
-                mime.setText(dupe)
-                drag.setMimeData(mime)
-                drag.exec_(Qt.CopyAction)
-            # creates a new reference to this shelf
-            elif b == Qt.RightButton:
-                self.undo = (b,)
+            mime = QMimeData()
+            mime.setText(dupe)
+            drag.setMimeData(mime)
+            drag.exec_(Qt.CopyAction)
+        # creates a new reference to this shelf
+        elif b == Qt.RightButton:
+            self.undo = (b,)
 
-                mime = QMimeData()
-                drag.setMimeData(mime)
-                mime.setText(self.df_id)
-                drag.exec_(Qt.LinkAction)
-            # move the reference to this shelf
-            elif b == Qt.LeftButton:
-                self.undo = (b, self.owner, self.owner.container_layout.indexOf(self) + 1)
-                self.view.controller.shelf_removed(self)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            mime.setText(self.df_id)
+            drag.exec_(Qt.LinkAction)
+        # move the reference to this shelf
+        elif b == Qt.LeftButton:
+            self.undo = (b, self.owner, self.owner.container_layout.indexOf(self) + 1)
+            self.view.controller.shelf_removed(self)
 
-                mime = QMimeData()
-                drag.setMimeData(mime)
-                mime.setText(self.df_id)
-                drag.exec_(Qt.MoveAction)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            mime.setText(self.df_id)
+            drag.exec_(Qt.MoveAction)
 
     # reverses changes made when initializing a drag in case drop fails
     def undo_drag(self):
@@ -707,7 +735,9 @@ class Shelf(QFrame):
             # check each subtask position to find index
             for n in range(self.container_layout.count()):
                 w = self.container_layout.itemAt(n).widget()
-                if self.mapFromGlobal(pos).y() < w.y() + w.size().height():
+                # take scroll affecting position into account if scroll is visible
+                y = w.parent().mapToParent(w.pos()).y() if self.layout().indexOf(self.scroll) > 0 else w.y()
+                if self.mapFromGlobal(pos).y() < y + w.size().height():
                     # insert in place, shifting old widget down
                     self.view.controller.insert_task_id_in_shelf(task_id, self, n+1)
                     added = True
@@ -772,7 +802,7 @@ class Rack(QScrollArea):
         # check each subshelf position to find index
         for n in range(self.container_layout.count()):
             w = self.container_layout.itemAt(n).widget()
-            if self.mapFromGlobal(pos).x() < w.x() + w.size().width():
+            if self.mapFromGlobal(pos).x() < w.parent().mapToParent(w.pos()).x() + w.size().width():
                 # insert in place, shifting old widget down
                 self.view.controller.insert_shelf_id_in_rack(shelf_id, n+1)
                 added = True
