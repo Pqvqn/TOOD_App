@@ -49,13 +49,13 @@ class Controller(QObject):
     def find_instances(self, df_id, is_id_task):
         instances = []
         if is_id_task:
-            # add stage appearance as an isntance
+            # add stage appearance as an intsance
             if df_id == self.model.stage:
                 instances.append(self.view.stage.task)
             # search up the tree and back down for instances of the parent
             parents = self.model.get_supershelves(df_id, include_index=True)
         else:
-            # add rack appearances as isntances
+            # add rack appearances as instances
             if df_id in self.model.rack:
                 indices = [i for i, x in enumerate(self.model.rack) if x == df_id]
                 instances.extend([self.view.rack.get_child(i) for i in indices])

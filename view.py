@@ -132,8 +132,6 @@ class Task(QFrame):
         self.title = EditableText("", 15)
         self.done_button = QPushButton("no")
         self.done_button.setFixedSize(40, 40)
-        # self.done_button.setCheckable(True)
-        # self.done_button.setChecked(False)
         cancel_button = QPushButton("x")
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
@@ -167,55 +165,27 @@ class Task(QFrame):
         self.container.setLayout(self.container_layout)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
         self.container.setContentsMargins(0, 0, 0, 0)
-        #self.container.hide()
-
-        # self.scroll = QScrollArea()
-        # self.scroll.setWidget(container)
-        # self.scroll.setWidgetResizable(True)
-        # # self.scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-        # self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # self.scroll.hide()
-
-        # top_row_layout = QHBoxLayout()
-        # top_row_layout.addWidget(self.title)
-        # #top_row_layout.addStretch()
-        # top_row_layout.addWidget(cancel_button)
-        # top_row_layout.addWidget(self.done_button)
 
         collapse_tree = CollapseGrid(True)
         collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
         collapse_tree.add_child(self.container, (1, 0, 1, 5), None, align=Qt.AlignTop)
 
         v_layout = QVBoxLayout()
-        # v_layout.addLayout(top_row_layout)
-        # v_layout.addWidget(self.due_edit)
-        # v_layout.addWidget(self.value_edit)
         v_layout.addLayout(collapse_grid)
         v_layout.addLayout(collapse_tree)
-        # v_layout.addWidget(self.scroll)
-        #v_layout.addWidget(self.container)
         v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
-        # v_layout.setSizeConstraint(QLayout.SetFixedSize)
         self.setLayout(v_layout)
 
         self.setFrameStyle(QFrame.Panel | QFrame.Plain)
         self.setLineWidth(2)
-        # self.setFixedHeight(100)
-        # self.setFixedHeight(400)
-        # self.setFixedWidth(268)
-
         self.set_edit_look(False)
         self.edit_fields(info)
-
-        # sp = self.sizePolicy()
-        # sp.setVerticalPolicy(QSizePolicy.Maximum)
-        # sp.setHorizontalPolicy(QSizePolicy.Minimum)
-        # self.setSizePolicy(sp)
 
         self.check_width()
         self.setAcceptDrops(True)
 
         # event filtering for clicks
+        self.installEventFilter(self.view)
         self.done_button.installEventFilter(self.view)
         cancel_button.installEventFilter(self.view)
         new_shelf_button.installEventFilter(self.view)
@@ -234,14 +204,6 @@ class Task(QFrame):
             lambda x: self.view.controller.widget_field_changed(self, ("due", x.toPyDateTime())))
         self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
 
-    # def sizeHint(self):
-    #     if self.scroll.isHidden():
-    #         return QSize(568, 140)
-    #     else:
-    #         return QSize(568, 400)
-
-    # def minimumSizeHint(self):
-    #     return QSize(568, 140) #268
 
     # set width to accomodate children and update parent if width changes
     def check_width(self):
@@ -295,22 +257,16 @@ class Task(QFrame):
         self.owner = o
 
     def add_child(self, child):
-        # if self.container.isHidden():
-        #     self.container.show()
         child.set_owner(self)
         self.container_layout.addWidget(child)
         self.check_width()
 
     def insert_child(self, child, pos):
-        # if self.container.isHidden():
-        #     self.container.show()
         child.set_owner(self)
         self.container_layout.insertWidget(pos, child)
         self.check_width()
 
     def remove_child(self, child):
-        # if self.container_layout.count() == 1:
-        #     self.container.hide()
         child.set_owner(None)
         self.container_layout.removeWidget(child)
         child.setParent(None)
@@ -466,16 +422,6 @@ class Shelf(QFrame):
             id_label.hide()
         collapse_grid.collapse_toggled.connect(lambda open: id_label.show() if open else id_label.close())
 
-        # header1 = QHBoxLayout()
-        # header1.addWidget(self.title)
-        # header1.addWidget(cancel_button)
-        # header1.addWidget(new_task_button)
-        # header2 = QHBoxLayout()
-        # header2.addWidget(self.filter_check)
-        # header2.addWidget(self.filter_text)
-        # header2.addWidget(self.sorter_check)
-        # header2.addWidget(self.sorter_text)
-
         new_task_button = QPushButton("+")
         new_task_button.setFixedSize(40, 20)
 
@@ -485,51 +431,37 @@ class Shelf(QFrame):
         self.container.setLayout(self.container_layout)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
         self.container.setContentsMargins(0, 0, 0, 0)
-        # self.container_layout.addStretch()
-        # self.container_layout.setSizeConstraint(QLayout.SetMinimumSize)
         tree = self.container
         self.scroll = QScrollArea()
         if isinstance(owner, Rack):
             self.scroll.setWidget(self.container)
             tree = self.scroll
         self.scroll.setWidgetResizable(True)
-        # self.scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # self.scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        # self.container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.scroll.setFrameShape(QFrame.NoFrame)
 
         collapse_tree = CollapseGrid(True)
         collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
-        #collapse_tree.add_child(tree, (1, 0, 1, 5), None, align=Qt.AlignTop)
 
         v_layout = QVBoxLayout()
-        # v_layout.addLayout(header1)
-        # v_layout.addLayout(header2)
         v_layout.addLayout(collapse_grid)
         v_layout.addLayout(collapse_tree)
         v_layout.addWidget(self.container if not isinstance(owner, Rack) else self.scroll)
-        #v_layout.addStretch()
         v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
         self.setLayout(v_layout)
 
         self.setFrameStyle(QFrame.Panel | QFrame.Plain)
         self.set_edit_look(False)
         self.setLineWidth(2)
-        # self.setFixedWidth(300)
 
         self.set_edit_look(False)
         self.edit_fields(info)
-
-        # sp = self.sizePolicy()
-        # sp.setVerticalPolicy(QSizePolicy.Maximum)
-        # sp.setHorizontalPolicy(QSizePolicy.Preferred)
-        # self.setSizePolicy(sp)
 
         self.check_width()
         self.setAcceptDrops(True)
 
         # event filtering for clicks
+        self.installEventFilter(self.view)
         new_task_button.installEventFilter(self.view)
         cancel_button.installEventFilter(self.view)
 
@@ -551,12 +483,6 @@ class Shelf(QFrame):
             lambda x: self.view.controller.widget_field_changed(self, ("is_sorter", x)))
         self.sorter_text.edit_updated.connect(
             lambda x: self.view.controller.widget_field_changed(self, ("sorter_string", x)))
-
-    # def sizeHint(self):
-    #     return QSize(300, 140)
-    #
-    # def minimumSizeHint(self):
-    #     return QSize(300, 140)
 
     # set whether subtasks are held in a scrollbar or a frame
     def switch_scroll(self, to_scroll):
@@ -757,7 +683,6 @@ class Rack(QScrollArea):
         self.container_layout.setAlignment(Qt.AlignLeft)
         rack_container = QWidget()
         rack_container.setLayout(self.container_layout)
-        # self.container_layout.addStretch()
 
         self.setAcceptDrops(True)
 
@@ -888,12 +813,8 @@ class Editable(QStackedWidget):
         self.set_state(data)
         self.addWidget(self.label)
         self.addWidget(self.edit)
-        # self.edit.focus_lost.connect(lambda: self.set_mode(False))
-        # self.edit.returnPressed.connect(lambda: self.set_mode(False))
         self.setFixedHeight(height)
-        # self.set_mode(False)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        # print(self.edit.sizeHint(), self.label.sizeHint(), self.sizeHint())
 
     def sizeHint(self):
         return QSize(300, 15)
