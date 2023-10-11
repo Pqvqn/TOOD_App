@@ -127,6 +127,7 @@ class Task(QFrame):
 
         # set as tuple when being dragged so action can be undone
         self.undo = None
+        self.dragStartPosition = None
 
         # create UI
         self.title = EditableText("", 15)
@@ -284,11 +285,19 @@ class Task(QFrame):
             # track beginning of mouse hold and only start drag when it goes far enough
             self.dragStartPosition = e.pos()
 
+    def mouseReleaseEvent(self, e):
+        # reset drag start once released
+        self.dragStartPosition = None
+
     def mouseMoveEvent(self, e):
         b = e.buttons()
 
         # only process dragging while button held
         if not(b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton):
+            return
+
+        # dont do drag if start position not set
+        if self.dragStartPosition is None:
             return
 
         # only process dragging once the mouse has moved far enough
@@ -392,6 +401,7 @@ class Shelf(QFrame):
 
         # set as tuple when being dragged so action can be undone
         self.undo = None
+        self.dragStartPosition = None
 
         # create UI
         self.title = EditableText("", 15)
@@ -581,11 +591,19 @@ class Shelf(QFrame):
             # track beginning of mouse hold and only start drag when it goes far enough
             self.dragStartPosition = e.pos()
 
+    def mouseReleaseEvent(self, e):
+        # reset drag start once released
+        self.dragStartPosition = None
+
     def mouseMoveEvent(self, e):
         b = e.buttons()
 
         # only process dragging while button held
-        if not (b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton):
+        if not(b == Qt.LeftButton or b == Qt.RightButton or b == Qt.MiddleButton):
+            return
+
+        # dont do drag if start position not set
+        if self.dragStartPosition is None:
             return
 
         # only process dragging once the mouse has moved far enough
