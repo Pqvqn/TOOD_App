@@ -441,9 +441,14 @@ class Shelf(QFrame):
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setContentsMargins(0, 0, 0, 0)
 
+        self.child_indicator = QFrame()
+        self.child_indicator.setFrameShape(QFrame.Box)
+        self.child_indicator.setFixedHeight(10)
+
         self.collapse_tree = CollapseGrid(True)
         self.collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
         self.collapse_tree.add_child(tree, (1, 0, 1, 5), None)
+        self.collapse_tree.add_child(self.child_indicator, None, (0, 1))
 
         id_label = QLabel(str(self.df_id))
         id_label.setStyleSheet("color: gray; font: italic")
@@ -1008,17 +1013,17 @@ class CollapseGrid(QWidget):
         self.state = is_open
         # process each widget
         for w in self.component_widgets:
-            # if opened, move to open position
-            if self.state:
+            # if opened, and appears in opened layout, move to open position
+            if self.state and w[1] is not None:
                 self.grid.removeWidget(w[0])
                 self.grid.addWidget(w[0], *w[1], alignment=w[3])
                 w[0].show()
             # if closed, and appears in closed layout, move to closed position
-            elif w[2] is not None:
+            elif not self.state and w[2] is not None:
                 self.grid.removeWidget(w[0])
                 self.grid.addWidget(w[0], *w[2], alignment=w[3])
                 w[0].show()
-            # if closed, and not included in closed layout, hide widget
+            # if hidden in current state, hide
             else:
                 w[0].hide()
         self.toggle_arrow.setText("v" if self.state else ">")
@@ -1026,14 +1031,21 @@ class CollapseGrid(QWidget):
 
     # add a child widget and set its open and closed positions
     def add_child(self, widget, open_pos, close_pos, align=Qt.Alignment()):
+        # invalid, never appears
+        if open_pos is None and close_pos is None:
+            return
         # add to open position
-        if self.state:
+        elif self.state and open_pos is not None:
             self.grid.addWidget(widget, *open_pos, alignment=align)
         # add to close position
-        elif close_pos is not None:
+        elif not self.state and close_pos is not None:
             self.grid.addWidget(widget, *close_pos, alignment=align)
-        # add and hide
-        else:
+        # add to close pos and hide
+        elif self.state and open_pos is None:
+            self.grid.addWidget(widget, *close_pos, alignment=align)
+            widget.hide()
+        # add to open pos hide
+        elif not self.state and close_pos is None:
             self.grid.addWidget(widget, *open_pos, alignment=align)
             widget.hide()
         # append widget to list of all widgets
