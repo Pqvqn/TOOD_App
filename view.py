@@ -152,9 +152,14 @@ class Task(QFrame):
         self.container.setContentsMargins(0, 0, 0, 0)
         self.setContentsMargins(0, 0, 0, 0)
 
-        collapse_tree = CollapseGrid(True)
+        self.child_indicator = QFrame()
+        self.child_indicator.setFrameShape(QFrame.NoFrame)
+        self.child_indicator.setFixedHeight(8)
+
+        collapse_tree = CollapseGrid(False)
         collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
         collapse_tree.add_child(self.container, (1, 0, 1, 5), None)
+        collapse_tree.add_child(self.child_indicator, None, (0, 1, 1, 3), align=Qt.AlignVCenter)
 
         id_label = QLabel(str(self.df_id))
         id_label.setStyleSheet("color: gray; font: italic")
@@ -169,7 +174,7 @@ class Task(QFrame):
         collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
         collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
 
-        collapse_grid.add_child(collapse_tree, (3, 0, 2, 5), (1, 0, 1, 5))
+        collapse_grid.add_child(collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
         collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
 
         # if not expanded:
@@ -266,17 +271,24 @@ class Task(QFrame):
         child.set_owner(self)
         self.container_layout.addWidget(child)
         self.check_width()
+        if self.container_layout.count() == 1:
+            self.child_indicator.setFrameShape(QFrame.Box)
 
     def insert_child(self, child, pos):
         child.set_owner(self)
         self.container_layout.insertWidget(pos, child)
         self.check_width()
+        if self.container_layout.count() == 1:
+            self.child_indicator.setFrameShape(QFrame.Box)
 
     def remove_child(self, child):
         child.set_owner(None)
         self.container_layout.removeWidget(child)
         child.setParent(None)
         self.check_width()
+        if self.container_layout.count() == 0:
+            self.child_indicator.setFrameShape(QFrame.NoFrame)
+
 
     def get_child(self, idx):
         return self.container_layout.itemAt(idx).widget()
@@ -442,13 +454,13 @@ class Shelf(QFrame):
         self.scroll.setContentsMargins(0, 0, 0, 0)
 
         self.child_indicator = QFrame()
-        self.child_indicator.setFrameShape(QFrame.Box)
-        self.child_indicator.setFixedHeight(10)
+        self.child_indicator.setFrameShape(QFrame.NoFrame)
+        self.child_indicator.setFixedHeight(8)
 
         self.collapse_tree = CollapseGrid(True)
         self.collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
         self.collapse_tree.add_child(tree, (1, 0, 1, 5), None)
-        self.collapse_tree.add_child(self.child_indicator, None, (0, 1))
+        self.collapse_tree.add_child(self.child_indicator, None, (0, 1, 1, 3), align=Qt.AlignVCenter)
 
         id_label = QLabel(str(self.df_id))
         id_label.setStyleSheet("color: gray; font: italic")
@@ -464,13 +476,8 @@ class Shelf(QFrame):
         collapse_grid.add_child(self.sorter_check, (2, 1, 1, 1), (0, 4, 1, 1))
         collapse_grid.add_child(self.sorter_text, (2, 3, 1, 3), None)
 
-        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 5), (1, 0, 1, 5))
+        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
         collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
-
-        # if not expanded:
-        #     id_label.hide()
-        #collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
-
 
         v_layout = QVBoxLayout()
         v_layout.addWidget(collapse_grid)
@@ -588,17 +595,23 @@ class Shelf(QFrame):
         child.set_owner(self)
         self.container_layout.addWidget(child)
         self.check_width()
+        if self.container_layout.count() == 1:
+            self.child_indicator.setFrameShape(QFrame.Box)
 
     def insert_child(self, child, pos):
         child.set_owner(self)
         self.container_layout.insertWidget(pos, child)
         self.check_width()
+        if self.container_layout.count() == 1:
+            self.child_indicator.setFrameShape(QFrame.Box)
 
     def remove_child(self, child):
         child.set_owner(None)
         self.container_layout.removeWidget(child)
         child.setParent(None)
         self.check_width()
+        if self.container_layout.count() == 0:
+            self.child_indicator.setFrameShape(QFrame.NoFrame)
 
     def get_child(self, idx):
         return self.container_layout.itemAt(idx).widget()
