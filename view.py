@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSi
 from PyQt5.QtGui import QDrag, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QBoxLayout, QFrame, \
     QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QStyleFactory, QGridLayout, QMessageBox, \
-    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QLayout, QAbstractScrollArea, QApplication
+    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QLayout, QAbstractScrollArea, QApplication, QWIDGETSIZE_MAX
 
 
 class View(QMainWindow):
@@ -155,7 +155,7 @@ class Task(QFrame):
         id_label.setStyleSheet("color: gray; font: italic")
         if not expanded:
             id_label.hide()
-        collapse_grid.collapse_toggled.connect(lambda open: id_label.show() if open else id_label.close())
+        collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
 
         new_shelf_button = QPushButton("+")
         new_shelf_button.setFixedSize(40, 20)
@@ -169,7 +169,7 @@ class Task(QFrame):
 
         collapse_tree = CollapseGrid(True)
         collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
-        collapse_tree.add_child(self.container, (1, 0, 1, 5), None, align=Qt.AlignTop)
+        collapse_tree.add_child(self.container, (1, 0, 1, 5), None)
 
         v_layout = QVBoxLayout()
         v_layout.addLayout(collapse_grid)
@@ -430,14 +430,15 @@ class Shelf(QFrame):
         id_label.setStyleSheet("color: gray; font: italic")
         if not expanded:
             id_label.hide()
-        collapse_grid.collapse_toggled.connect(lambda open: id_label.show() if open else id_label.close())
+        # manually create a toggle for id label
+        collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
 
         new_task_button = QPushButton("+")
         new_task_button.setFixedSize(40, 20)
 
         self.container_layout = QVBoxLayout()
         self.container_layout.setAlignment(Qt.AlignTop)
-        self.container = QWidget()
+        self.container = QFrame()
         self.container.setLayout(self.container_layout)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
         self.container.setContentsMargins(0, 0, 0, 0)
@@ -450,13 +451,13 @@ class Shelf(QFrame):
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll.setFrameShape(QFrame.NoFrame)
 
-        collapse_tree = CollapseGrid(True)
-        collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
+        self.collapse_tree = CollapseGrid(True)
+        self.collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
+        self.collapse_tree.add_child(tree, (1, 0, 1, 5), None)
 
         v_layout = QVBoxLayout()
         v_layout.addLayout(collapse_grid)
-        v_layout.addLayout(collapse_tree)
-        v_layout.addWidget(self.container if not isinstance(owner, Rack) else self.scroll)
+        v_layout.addLayout(self.collapse_tree)
         v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
         self.setLayout(v_layout)
 
@@ -464,7 +465,6 @@ class Shelf(QFrame):
         self.set_edit_look(False)
         self.setLineWidth(2)
 
-        self.set_edit_look(False)
         self.edit_fields(info)
 
         self.check_width()
@@ -474,6 +474,10 @@ class Shelf(QFrame):
         self.installEventFilter(self.view)
         new_task_button.installEventFilter(self.view)
         cancel_button.installEventFilter(self.view)
+
+        # use collapse signal to set alignment; necessary for collapsing shelves in rack
+        self.collapse_tree.collapse_toggled.connect(lambda opened: self.owner.container_layout.setAlignment(self,
+                                                    Qt.Alignment() if opened else Qt.AlignTop))
 
         # connect inputs to controller
         new_task_button.pressed.connect(lambda: self.view.controller.new_task_in_shelf(self))
@@ -496,19 +500,19 @@ class Shelf(QFrame):
 
     # set whether subtasks are held in a scrollbar or a frame
     def switch_scroll(self, to_scroll):
-        v_layout = self.layout()
-        if to_scroll and v_layout.indexOf(self.container) > 0:
-            v_layout.replaceWidget(self.container, self.scroll)
+        c_layout = self.collapse_tree
+        if to_scroll and c_layout.contains_widget(self.container):
+            c_layout.replace_widget(self.container, self.scroll)
             self.scroll.setWidget(self.container)
             self.nest_offset += self.scroll.verticalScrollBar().sizeHint().width()
             self.check_width()
-        elif v_layout.indexOf(self.scroll) > 0:
+        elif not to_scroll and c_layout.contains_widget(self.scroll):
             self.scroll.takeWidget()
-            v_layout.replaceWidget(self.scroll, self.container)
+            c_layout.replace_widget(self.scroll, self.container)
             self.nest_offset -= self.scroll.verticalScrollBar().sizeHint().width()
             self.check_width()
 
-    # set width to accomodate children and update parent if width changes
+    # set width to accommodate children and update parent if width changes
     def check_width(self):
         max_wid = 0
         # find minimum necessary width to contain children
@@ -732,7 +736,7 @@ class Rack(QScrollArea):
 
     # accept dragged shelves or shelf ids
     def dragEnterEvent(self, e):
-        if e.mimeData().text()[0]=='s' or isinstance(e.source(), Shelf):
+        if e.mimeData().text()[0] == 's' or isinstance(e.source(), Shelf):
             e.accept()
 
     # handle placement of dropped shelves
@@ -978,6 +982,7 @@ class CollapseGrid(QGridLayout):
         self.toggle_arrow.setFlat(True)
         self.addWidget(self.toggle_arrow, 0, 0)
 
+        self.state = False
         self.set_state(init_state)
 
     # open or close the layout
@@ -1015,3 +1020,19 @@ class CollapseGrid(QGridLayout):
             widget.hide()
         # append widget to list of all widgets
         self.component_widgets.append((widget, open_pos, close_pos, align))
+
+    # returns true if widget is in this grid
+    def contains_widget(self, widget):
+        for component in self.component_widgets:
+            if component[0] == widget:
+                return True
+        return False
+
+    # replaces a widget with a new one that follows the same collapse rule
+    def replace_widget(self, original_w, new_w):
+        for component in self.component_widgets:
+            if component[0] == original_w:
+                self.component_widgets.remove(component)
+                self.removeWidget(original_w)
+                self.add_child(new_w, component[1], component[2], component[3])
+                return
