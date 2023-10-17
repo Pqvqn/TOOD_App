@@ -123,7 +123,7 @@ class Task(QFrame):
         self.setObjectName("Task" + str(self.df_id))
 
         # added padding when going from lower level up to this one
-        self.nest_offset = 22
+        self.nest_offset = 28
 
         # set as tuple when being dragged so action can be undone
         self.undo = None
@@ -132,7 +132,7 @@ class Task(QFrame):
         # create UI
         self.title = EditableText("", 15)
         self.done_button = QPushButton("no")
-        self.done_button.setFixedSize(40, 40)
+        self.done_button.setFixedSize(40, 20)
         cancel_button = QPushButton("x")
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
@@ -140,22 +140,6 @@ class Task(QFrame):
         self.due_edit = EditableDate(QDateTime(), 15)
         self.value_label = QLabel("Value:")
         self.value_edit = EditableSpin(0, 15)
-
-        expanded = info["label"] == "///"
-        collapse_grid = CollapseGrid(expanded)
-        collapse_grid.add_child(self.title, (0, 1, 1, 4), (0, 1, 1, 2), align=Qt.AlignLeft)
-        collapse_grid.add_child(self.done_button, (1, 4, 2, 2), (0, 3, 1, 2))
-        collapse_grid.add_child(cancel_button, (0, 5, 1, 1), (0, 5, 1, 1))
-        collapse_grid.add_child(self.due_label, (1, 1, 1, 1), None)
-        collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
-        collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
-        collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
-
-        id_label = QLabel(str(self.df_id))
-        id_label.setStyleSheet("color: gray; font: italic")
-        if not expanded:
-            id_label.hide()
-        collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
 
         new_shelf_button = QPushButton("+")
         new_shelf_button.setFixedSize(40, 20)
@@ -166,15 +150,36 @@ class Task(QFrame):
         self.container.setLayout(self.container_layout)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
         self.container.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
 
         collapse_tree = CollapseGrid(True)
         collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
         collapse_tree.add_child(self.container, (1, 0, 1, 5), None)
 
+        id_label = QLabel(str(self.df_id))
+        id_label.setStyleSheet("color: gray; font: italic")
+
+        expanded = info["label"] == "///"
+        collapse_grid = CollapseGrid(expanded)
+        collapse_grid.add_child(self.title, (0, 1, 1, 4), (0, 1, 1, 2), align=Qt.AlignLeft)
+        collapse_grid.add_child(self.done_button, (1, 4, 1, 2), (0, 3, 1, 2))
+        collapse_grid.add_child(cancel_button, (0, 5, 1, 1), (0, 5, 1, 1))
+        collapse_grid.add_child(self.due_label, (1, 1, 1, 1), None)
+        collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
+        collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
+        collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
+
+        collapse_grid.add_child(collapse_tree, (3, 0, 2, 5), (1, 0, 1, 5))
+        collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
+
+        # if not expanded:
+        #     id_label.hide()
+        # collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
+
         v_layout = QVBoxLayout()
-        v_layout.addLayout(collapse_grid)
-        v_layout.addLayout(collapse_tree)
-        v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
+        v_layout.addWidget(collapse_grid)
+        #v_layout.addLayout(collapse_tree)
+        #v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
         self.setLayout(v_layout)
 
         self.setFrameStyle(QFrame.Panel | QFrame.Plain)
@@ -397,7 +402,7 @@ class Shelf(QFrame):
         self.setObjectName("Shelf" + str(self.df_id))
 
         # added padding when going from lower level up to this one
-        self.nest_offset = 22
+        self.nest_offset = 28
 
         # set as tuple when being dragged so action can be undone
         self.undo = None
@@ -415,6 +420,34 @@ class Shelf(QFrame):
         self.sorter_check = EditableCheck(False, 15)
         self.sorter_text = EditableText("", 15)
 
+        new_task_button = QPushButton("+")
+        new_task_button.setFixedSize(40, 20)
+
+        self.container_layout = QVBoxLayout()
+        self.container_layout.setAlignment(Qt.AlignTop)
+        self.container = QFrame()
+        self.container.setLayout(self.container_layout)
+        self.container_layout.setContentsMargins(0, 0, 0, 0)
+        self.container.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        tree = self.container
+        self.scroll = QScrollArea()
+        if isinstance(owner, Rack):
+            self.scroll.setWidget(self.container)
+            tree = self.scroll
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setContentsMargins(0, 0, 0, 0)
+
+        self.collapse_tree = CollapseGrid(True)
+        self.collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
+        self.collapse_tree.add_child(tree, (1, 0, 1, 5), None)
+
+        id_label = QLabel(str(self.df_id))
+        id_label.setStyleSheet("color: gray; font: italic")
+
         expanded = info["title"] == "///"
         collapse_grid = CollapseGrid(expanded)
         collapse_grid.add_child(self.title, (0, 1, 1, 4), (0, 1, 1, 2), align=Qt.AlignLeft)
@@ -426,38 +459,17 @@ class Shelf(QFrame):
         collapse_grid.add_child(self.sorter_check, (2, 1, 1, 1), (0, 4, 1, 1))
         collapse_grid.add_child(self.sorter_text, (2, 3, 1, 3), None)
 
-        id_label = QLabel(str(self.df_id))
-        id_label.setStyleSheet("color: gray; font: italic")
-        if not expanded:
-            id_label.hide()
-        # manually create a toggle for id label
-        collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
+        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 5), (1, 0, 1, 5))
+        collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
 
-        new_task_button = QPushButton("+")
-        new_task_button.setFixedSize(40, 20)
+        # if not expanded:
+        #     id_label.hide()
+        #collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
 
-        self.container_layout = QVBoxLayout()
-        self.container_layout.setAlignment(Qt.AlignTop)
-        self.container = QFrame()
-        self.container.setLayout(self.container_layout)
-        self.container_layout.setContentsMargins(0, 0, 0, 0)
-        self.container.setContentsMargins(0, 0, 0, 0)
-        tree = self.container
-        self.scroll = QScrollArea()
-        if isinstance(owner, Rack):
-            self.scroll.setWidget(self.container)
-            tree = self.scroll
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setFrameShape(QFrame.NoFrame)
-
-        self.collapse_tree = CollapseGrid(True)
-        self.collapse_tree.add_child(new_task_button, (0, 4), None, align=Qt.AlignRight)
-        self.collapse_tree.add_child(tree, (1, 0, 1, 5), None)
 
         v_layout = QVBoxLayout()
-        v_layout.addLayout(collapse_grid)
-        v_layout.addLayout(self.collapse_tree)
+        v_layout.addWidget(collapse_grid)
+        v_layout.addWidget(self.collapse_tree)
         v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
         self.setLayout(v_layout)
 
@@ -967,7 +979,7 @@ class EditableDate(Editable):
             self.label.setText(str(state))
 
 
-class CollapseGrid(QGridLayout):
+class CollapseGrid(QWidget):
     # class that can toggle between two widget layouts when an open/close button is clicked
 
     collapse_toggled = pyqtSignal(bool)
@@ -975,12 +987,18 @@ class CollapseGrid(QGridLayout):
     def __init__(self, init_state, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.grid = QGridLayout()
+        self.setLayout(self.grid)
+
         self.component_widgets = []
         self.toggle_arrow = QPushButton()
         self.toggle_arrow.clicked.connect(lambda x: self.set_state(not self.state))
         self.toggle_arrow.setFixedSize(15, 15)
         self.toggle_arrow.setFlat(True)
-        self.addWidget(self.toggle_arrow, 0, 0)
+        self.grid.addWidget(self.toggle_arrow, 0, 0)
+
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
 
         self.state = False
         self.set_state(init_state)
@@ -992,13 +1010,13 @@ class CollapseGrid(QGridLayout):
         for w in self.component_widgets:
             # if opened, move to open position
             if self.state:
-                self.removeWidget(w[0])
-                self.addWidget(w[0], *w[1], alignment=w[3])
+                self.grid.removeWidget(w[0])
+                self.grid.addWidget(w[0], *w[1], alignment=w[3])
                 w[0].show()
             # if closed, and appears in closed layout, move to closed position
             elif w[2] is not None:
-                self.removeWidget(w[0])
-                self.addWidget(w[0], *w[2], alignment=w[3])
+                self.grid.removeWidget(w[0])
+                self.grid.addWidget(w[0], *w[2], alignment=w[3])
                 w[0].show()
             # if closed, and not included in closed layout, hide widget
             else:
@@ -1010,13 +1028,13 @@ class CollapseGrid(QGridLayout):
     def add_child(self, widget, open_pos, close_pos, align=Qt.Alignment()):
         # add to open position
         if self.state:
-            self.addWidget(widget, *open_pos, alignment=align)
+            self.grid.addWidget(widget, *open_pos, alignment=align)
         # add to close position
         elif close_pos is not None:
-            self.addWidget(widget, *close_pos, alignment=align)
+            self.grid.addWidget(widget, *close_pos, alignment=align)
         # add and hide
         else:
-            self.addWidget(widget, *open_pos, alignment=align)
+            self.grid.addWidget(widget, *open_pos, alignment=align)
             widget.hide()
         # append widget to list of all widgets
         self.component_widgets.append((widget, open_pos, close_pos, align))
@@ -1033,6 +1051,6 @@ class CollapseGrid(QGridLayout):
         for component in self.component_widgets:
             if component[0] == original_w:
                 self.component_widgets.remove(component)
-                self.removeWidget(original_w)
+                self.grid.removeWidget(original_w)
                 self.add_child(new_w, component[1], component[2], component[3])
                 return
