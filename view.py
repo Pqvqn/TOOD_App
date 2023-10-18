@@ -129,10 +129,14 @@ class Task(QFrame):
         self.undo = None
         self.dragStartPosition = None
 
+        # formatting for incomplete and complete button
+        self.button_styles = ("border-radius : 10; border : 2px solid gray; background-color : white",
+                              "border-radius : 10; background-color : green; color : white")
+
         # create UI
         self.title = EditableText("", 15)
-        self.done_button = QPushButton("no")
-        self.done_button.setFixedSize(40, 20)
+        self.done_button = QPushButton()
+        self.done_button.setFixedSize(20, 20)
         cancel_button = QPushButton("x")
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
@@ -205,7 +209,7 @@ class Task(QFrame):
         new_shelf_button.pressed.connect(lambda: self.view.controller.new_shelf_in_task(self))
         cancel_button.pressed.connect(lambda: self.view.controller.task_removed(self))
         self.done_button.pressed.connect(
-            lambda: self.view.controller.direct_field_change(self, ("completed", self.done_button.text() == "no")))
+            lambda: self.view.controller.direct_field_change(self, ("completed", self.done_button.text() != "✔")))
 
         self.title.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "title"))
         self.due_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "due_edit"))
@@ -250,7 +254,8 @@ class Task(QFrame):
         if "label" in edit_dict:
             self.title.set_state(edit_dict["label"])
         if "completed" in edit_dict:
-            self.done_button.setText("yes" if edit_dict["completed"] else "no")
+            self.done_button.setText("✔" if edit_dict["completed"] else "")
+            self.done_button.setStyleSheet(self.button_styles[1 if edit_dict["completed"] else 0])
         if "due" in edit_dict:
             self.due_edit.set_state(edit_dict["due"], label=False)
             self.due_edit.set_state(str(edit_dict["due"]), edit=False)
