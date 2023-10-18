@@ -1,5 +1,5 @@
 import pandas as pd
-from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSize
+from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSize, QTime
 from PyQt5.QtGui import QDrag, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QBoxLayout, QFrame, \
     QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QStyleFactory, QGridLayout, QMessageBox, \
@@ -256,7 +256,7 @@ class Task(QFrame):
             self.done_button.setText("✔" if edit_dict["completed"] else "")
             self.done_button.setStyleSheet(self.button_styles[1 if edit_dict["completed"] else 0])
         if "due" in edit_dict:
-            self.due_edit.set_state(str(edit_dict["due"]))
+            self.due_edit.set_state(None if edit_dict["due"] is None else str(edit_dict["due"]))
         if "value" in edit_dict:
             self.value_edit.set_state(edit_dict["value"], label=False)
             self.value_edit.set_state(str(edit_dict["value"]), edit=False)
@@ -996,12 +996,18 @@ class EditableDate(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
+    # by default, dates are assumed to be the upcoming midnight
+    def default_time(self):
+        dt = QDateTime.currentDateTime().addDays(1)
+        dt.setTime(QTime())
+        return dt
+
     def set_state(self, state, edit=True, label=True):
         if edit:
-            self.edit.setDateTime(QDateTime.currentDateTime() if state is None else
+            self.edit.setDateTime(self.default_time() if state is None else
                                   QDateTime.fromString(state, EditableDate.model_format))
         if label:
-            self.label.setText(str(None) if state is None else
+            self.label.setText("--/--/-- --:--" if state is None else
                     QDateTime.fromString(state, EditableDate.model_format).toString(EditableDate.display_format))
 
 
