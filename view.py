@@ -141,7 +141,7 @@ class Task(QFrame):
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
         self.due_label = QLabel("Due:")
-        self.due_edit = EditableDate(QDateTime(), 15)
+        self.due_edit = EditableDate(None, 15)
         self.value_label = QLabel("Value:")
         self.value_edit = EditableSpin(0, 15)
 
@@ -215,8 +215,7 @@ class Task(QFrame):
         self.due_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "due_edit"))
         self.value_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "value_edit"))
         self.title.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("label", x)))
-        self.due_edit.edit_updated.connect(
-            lambda x: self.view.controller.widget_field_changed(self, ("due", x.toPyDateTime())))
+        self.due_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("due", x)))
         self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
 
 
@@ -257,8 +256,7 @@ class Task(QFrame):
             self.done_button.setText("✔" if edit_dict["completed"] else "")
             self.done_button.setStyleSheet(self.button_styles[1 if edit_dict["completed"] else 0])
         if "due" in edit_dict:
-            self.due_edit.set_state(edit_dict["due"], label=False)
-            self.due_edit.set_state(str(edit_dict["due"]), edit=False)
+            self.due_edit.set_state(str(edit_dict["due"]))
         if "value" in edit_dict:
             self.value_edit.set_state(edit_dict["value"], label=False)
             self.value_edit.set_state(str(edit_dict["value"]), edit=False)
@@ -979,12 +977,15 @@ class EditableSpin(Editable):
 
 
 class EditableDate(Editable):
-    edit_updated = pyqtSignal(QDateTime)
+    edit_updated = pyqtSignal(str)
+    display_format = "M/d/yyyy h:mm AP"
+    model_format = "yyyy-MM-dd hh:mm:ss"
 
     def __init__(self, number, height, *args, **kwargs):
         super().__init__(number, height, *args, **kwargs)
 
-        self.edit.dateTimeChanged.connect(lambda x: self.edit_updated.emit(x))
+        self.edit.setDisplayFormat(EditableDate.display_format)
+        self.edit.dateTimeChanged.connect(lambda x: self.edit_updated.emit(x.toString(EditableDate.model_format)))
 
     def make_edit(self):
         return self.DefocusDateTimeEditFix()
@@ -997,9 +998,11 @@ class EditableDate(Editable):
 
     def set_state(self, state, edit=True, label=True):
         if edit:
-            self.edit.setDateTime(QDateTime() if state is None else QDateTime(state))
+            self.edit.setDateTime(QDateTime.currentDateTime() if state is None else
+                                  QDateTime.fromString(state, EditableDate.model_format))
         if label:
-            self.label.setText(str(state))
+            self.label.setText(str(None) if state is None else
+                    QDateTime.fromString(state, EditableDate.model_format).toString(EditableDate.display_format))
 
 
 class CollapseGrid(QWidget):
