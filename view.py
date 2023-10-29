@@ -261,6 +261,9 @@ class Task(QFrame):
             self.value_edit.set_state(edit_dict["value"], label=False)
             self.value_edit.set_state(str(edit_dict["value"]), edit=False)
 
+        # update summary of data in this task for hover
+        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n Due at {self.due_edit.label.text()}</p>")
+
     # close all open edit widgets
     def close_fields(self):
         self.title.set_mode(False)

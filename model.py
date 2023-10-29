@@ -274,14 +274,14 @@ class Model(QObject):
     def edit_task(self, task, **kwargs):
 
         # change dates to pandas datetime
-        if "due" in kwargs:
+        if "due" in kwargs and kwargs["due"] is not None:
             kwargs["due"] = pd.Timestamp(kwargs["due"])
 
         # make sure all values are of the correct type
         for key in kwargs:
             if key not in self.taskcolumns:
                 return False, key + " is not a task parameter"
-            if not isinstance(kwargs[key], self.taskcolumns.get(key)):
+            if kwargs[key] is not None and not isinstance(kwargs[key], self.taskcolumns.get(key)):
                 return False, key + " must have type " + self.taskcolumns[key].__name__
 
         # don't allow internal parameters to be modified
@@ -306,7 +306,7 @@ class Model(QObject):
         for key in kwargs:
             if key not in self.shelfcolumns:
                 return False, key + " is not a shelf parameter"
-            if not isinstance(kwargs[key], self.shelfcolumns.get(key)):
+            if kwargs[key] is not None and not isinstance(kwargs[key], self.shelfcolumns.get(key)):
                 return False, key + " must have type " + self.shelfcolumns[key].__name__
 
         # don't create filters that are subshelves of any task
