@@ -559,17 +559,18 @@ class Model(QObject):
                                     .set_index("index") # set dataframe index to index columb
                                     .fillna(0) # replace missing values with 0 (for no nesting)
                                     .astype(int)) # convert floats to integers
+
                 # add shelves missing from matrix
-                for s in self.shelfdf.index:
-                    if s not in self.nestmat.index:
-                        if len(self.nestmat.columns) > 0:
-                            self.nestmat.loc[s] = 0
-                        else:
-                            self.nestmat = pd.concat([self.nestmat, pd.DataFrame(index=[s])])
+                missing_row = pd.Series([s for s in self.shelfdf.index if s not in self.nestmat.index])
+                mis_r_df = pd.DataFrame(index=missing_row)
+                self.nestmat = pd.concat([self.nestmat, mis_r_df])
+
                 # add tasks missing from matrix
-                for t in self.taskdf.index:
-                    if t not in self.nestmat.columns:
-                        self.nestmat[t] = 0
+                missing_col = pd.Series([t for t in self.taskdf.index if t not in self.nestmat.columns])
+                mis_c_df = pd.DataFrame(columns=missing_col)
+                self.nestmat = pd.concat([self.nestmat, mis_c_df], axis=1)
+
+                self.nestmat = self.nestmat.fillna(0.0)
         else:
             self.nestmat = pd.DataFrame()
 

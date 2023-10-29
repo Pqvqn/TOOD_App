@@ -984,6 +984,7 @@ class EditableDate(Editable):
     def __init__(self, number, height, *args, **kwargs):
         super().__init__(number, height, *args, **kwargs)
 
+        self.edit.setCalendarPopup(True)
         self.edit.setDisplayFormat(EditableDate.display_format)
         self.edit.dateTimeChanged.connect(lambda x: self.edit_updated.emit(x.toString(EditableDate.model_format)))
 
