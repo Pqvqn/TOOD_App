@@ -160,10 +160,10 @@ class Task(QFrame):
         self.child_indicator.setFrameShape(QFrame.NoFrame)
         self.child_indicator.setFixedHeight(8)
 
-        collapse_tree = CollapseGrid(False)
-        collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
-        collapse_tree.add_child(self.container, (1, 0, 1, 5), None)
-        collapse_tree.add_child(self.child_indicator, None, (0, 1, 1, 3), align=Qt.AlignVCenter)
+        self.collapse_tree = CollapseGrid(False)
+        self.collapse_tree.add_child(new_shelf_button, (0, 4), None, align=Qt.AlignRight)
+        self.collapse_tree.add_child(self.container, (1, 0, 1, 5), None)
+        self.collapse_tree.add_child(self.child_indicator, None, (0, 1, 1, 3), align=Qt.AlignVCenter)
 
         id_label = QLabel(str(self.df_id))
         id_label.setStyleSheet("color: gray; font: italic")
@@ -178,7 +178,7 @@ class Task(QFrame):
         collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
         collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
 
-        collapse_grid.add_child(collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
+        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
         collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
 
         # if not expanded:
@@ -205,6 +205,9 @@ class Task(QFrame):
         cancel_button.installEventFilter(self.view)
         new_shelf_button.installEventFilter(self.view)
 
+        # update width when tree collapsed
+        self.collapse_tree.collapse_toggled.connect(self.check_width)
+
         # connect inputs to controller
         new_shelf_button.pressed.connect(lambda: self.view.controller.new_shelf_in_task(self))
         cancel_button.pressed.connect(lambda: self.view.controller.task_removed(self))
@@ -222,14 +225,18 @@ class Task(QFrame):
     # set width to accomodate children and update parent if width changes
     def check_width(self):
         max_wid = 0
-        # find minimum necessary width to contain children
-        for i in range(self.container_layout.count()):
-            wid = self.container_layout.itemAt(i).widget().size().width()
-            if wid > max_wid:
-                max_wid = wid
+        if not self.collapse_tree.state:
+            # minimize width if tress is collapsed
+            max_wid = 0
+        else:
+            # find minimum necessary width to contain children
+            for i in range(self.container_layout.count()):
+                wid = self.container_layout.itemAt(i).widget().size().width()
+                if wid > max_wid:
+                    max_wid = wid
         # if width changes, update parent widths
-        if max_wid != self.size().width() - self.nest_offset:
-            self.setFixedWidth(max(max_wid + self.nest_offset, 250))
+        if max_wid + self.nest_offset != self.size().width():
+            self.setFixedWidth(max(max_wid + self.nest_offset, 222 + self.nest_offset))
             if isinstance(self.owner, Shelf):
                 self.owner.check_width()
 
@@ -276,25 +283,24 @@ class Task(QFrame):
     def add_child(self, child):
         child.set_owner(self)
         self.container_layout.addWidget(child)
-        self.check_width()
         if self.container_layout.count() == 1:
             self.child_indicator.setFrameShape(QFrame.Box)
+        self.check_width()
 
     def insert_child(self, child, pos):
         child.set_owner(self)
         self.container_layout.insertWidget(pos, child)
-        self.check_width()
         if self.container_layout.count() == 1:
             self.child_indicator.setFrameShape(QFrame.Box)
+        self.check_width()
 
     def remove_child(self, child):
         child.set_owner(None)
         self.container_layout.removeWidget(child)
         child.setParent(None)
-        self.check_width()
         if self.container_layout.count() == 0:
             self.child_indicator.setFrameShape(QFrame.NoFrame)
-
+        self.check_width()
 
     def get_child(self, idx):
         return self.container_layout.itemAt(idx).widget()
@@ -508,6 +514,8 @@ class Shelf(QFrame):
         # use collapse signal to set alignment; necessary for collapsing shelves in rack
         self.collapse_tree.collapse_toggled.connect(lambda opened: self.owner.container_layout.setAlignment(self,
                                                     Qt.Alignment() if opened else Qt.AlignTop))
+        # update width when tree collapsed
+        self.collapse_tree.collapse_toggled.connect(self.check_width)
 
         # connect inputs to controller
         new_task_button.pressed.connect(lambda: self.view.controller.new_task_in_shelf(self))
@@ -545,14 +553,19 @@ class Shelf(QFrame):
     # set width to accommodate children and update parent if width changes
     def check_width(self):
         max_wid = 0
-        # find minimum necessary width to contain children
-        for i in range(self.container_layout.count()):
-            wid = self.container_layout.itemAt(i).widget().size().width()
-            if wid > max_wid:
-                max_wid = wid
+        if not self.collapse_tree.state:
+            # minimize width if tress is collapsed
+            max_wid = 0
+        else:
+            # find minimum necessary width to contain children
+            for i in range(self.container_layout.count()):
+                wid = self.container_layout.itemAt(i).widget().size().width()
+                if wid > max_wid:
+                    max_wid = wid
+
         # if width changes, update parent widths
-        if max_wid != self.size().width() - self.nest_offset:
-            self.setFixedWidth(max(max_wid + self.nest_offset, 250))
+        if max_wid + self.nest_offset != self.size().width():
+            self.setFixedWidth(max(max_wid + self.nest_offset, 222 + self.nest_offset))
             if isinstance(self.owner, Task):
                 self.owner.check_width()
 
@@ -600,24 +613,24 @@ class Shelf(QFrame):
     def add_child(self, child):
         child.set_owner(self)
         self.container_layout.addWidget(child)
-        self.check_width()
         if self.container_layout.count() == 1:
             self.child_indicator.setFrameShape(QFrame.Box)
+        self.check_width()
 
     def insert_child(self, child, pos):
         child.set_owner(self)
         self.container_layout.insertWidget(pos, child)
-        self.check_width()
         if self.container_layout.count() == 1:
             self.child_indicator.setFrameShape(QFrame.Box)
+        self.check_width()
 
     def remove_child(self, child):
         child.set_owner(None)
         self.container_layout.removeWidget(child)
         child.setParent(None)
-        self.check_width()
         if self.container_layout.count() == 0:
             self.child_indicator.setFrameShape(QFrame.NoFrame)
+        self.check_width()
 
     def get_child(self, idx):
         return self.container_layout.itemAt(idx).widget()
