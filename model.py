@@ -1,32 +1,45 @@
 from random import randint
-
-from PyQt5.QtCore import QObject, pyqtSignal
 import pandas as pd
+from PyQt5.QtCore import QObject, pyqtSignal
+import re
+import mmap
+
 pd.options.mode.chained_assignment = None
-import re, mmap
+
+
+# creates a new label index that doesn't overlap with any existing labels
+def generate_next_label(column_list, prefix=""):
+    if len(column_list) == 0:
+        # create first index of table
+        return prefix + str(randint(1, 25))
+    else:
+        # remove prefix and convert list of strings to ints
+        fixed_list = [int(x[len(prefix):]) for x in column_list]
+        return prefix + str(max(fixed_list) + randint(1, 25))
+
 
 class Model(QObject):
 
     # signals
-    task_moved_in_shelf = pyqtSignal(str, str, int, int) # task id, shelf id, start idx, end idx
-    shelf_moved_in_task = pyqtSignal(str, str, int, int) # shelf id, task id, start idx, end idx
-    shelf_moved_in_rack = pyqtSignal(str, int) # shelf id, end idx
-    shelf_added_to_rack = pyqtSignal(str, int) # shelf id, end idx
-    shelf_removed_from_rack = pyqtSignal(str, int) # shelf id, prev idx
-    task_in_stage_changed = pyqtSignal(str, str) # prev id, new id
-    task_info_changed = pyqtSignal(str, dict) # task id, all task values to be updated
-    shelf_info_changed = pyqtSignal(str, dict) # shelf id, all shelf values to be updated
-    new_model_loaded = pyqtSignal(str, list) # stage, rack
+    task_moved_in_shelf = pyqtSignal(str, str, int, int)  # task id, shelf id, start idx, end idx
+    shelf_moved_in_task = pyqtSignal(str, str, int, int)  # shelf id, task id, start idx, end idx
+    shelf_moved_in_rack = pyqtSignal(str, int)  # shelf id, end idx
+    shelf_added_to_rack = pyqtSignal(str, int)  # shelf id, end idx
+    shelf_removed_from_rack = pyqtSignal(str, int)  # shelf id, prev idx
+    task_in_stage_changed = pyqtSignal(str, str)  # prev id, new id
+    task_info_changed = pyqtSignal(str, dict)  # task id, all task values to be updated
+    shelf_info_changed = pyqtSignal(str, dict)  # shelf id, all shelf values to be updated
+    new_model_loaded = pyqtSignal(str, list)  # stage, rack
 
     def __init__(self):
         super(QObject, self).__init__()
 
         # column labels and required types for task dataframe
         self.taskcolumns = {"label": str,
-                          "seen": int,
-                          "due": pd.Timestamp,
-                          "completed": bool,
-                          "value": float}
+                            "seen": int,
+                            "due": pd.Timestamp,
+                            "completed": bool,
+                            "value": float}
         # shelf labels and required types for task dataframe
         self.shelfcolumns = {"title": str,
                              "seen": int,
@@ -36,9 +49,9 @@ class Model(QObject):
                              "sorter_string": str}
 
         # dataframe of task data by task index
-        self.taskdf = pd.DataFrame(columns=self.taskcolumns.keys())
+        self.taskdf = pd.DataFrame(columns=list(self.taskcolumns.keys()))
         # dataframe of shelf data by shelf index
-        self.shelfdf = pd.DataFrame(columns=self.shelfcolumns.keys())
+        self.shelfdf = pd.DataFrame(columns=list(self.shelfcolumns.keys()))
         # nesting matrix of ordering of tasks within shelves and vice-versa; tasks are columns, shelves are rows
         # positive integers are for task ordering in shelf, negative integers are for shelf ordering in task, 0 is none
         # no recursive loop is allowed to exist
@@ -47,16 +60,6 @@ class Model(QObject):
         self.rack = []
         #  spot for single task outside of shelves
         self.stage = None
-
-    # creates a new label index that doesn't overlap with any existing labels
-    def generate_next_label(self, column_list, prefix=""):
-        if len(column_list) == 0:
-            # create first index of table
-            return prefix + str(randint(1,25))
-        else:
-            # remove prefix and convert list of strings to ints
-            fixed_list = [int(x[len(prefix):]) for x in column_list]
-            return prefix + str(max(fixed_list) + randint(1,25))
 
     # returns true if the target shelf or task is found the current shelf or task in the nesting tree
     def check_tree_for(self, current, is_current_task, target, is_target_task, is_searching_up):
@@ -67,10 +70,10 @@ class Model(QObject):
         # find next tasks or shelves to check
         if is_current_task:
             strip = self.nestmat[current]
-            next_layer = strip.index[strip.values>0 if is_searching_up else strip.values<0]
+            next_layer = strip.index[strip.values > 0 if is_searching_up else strip.values < 0]
         else:
             strip = self.nestmat.loc[current]
-            next_layer = strip.index[strip.values<0 if is_searching_up else strip.values>0]
+            next_layer = strip.index[strip.values < 0 if is_searching_up else strip.values > 0]
 
         # recursively check all children or parents
         for x in next_layer:
@@ -103,12 +106,12 @@ class Model(QObject):
     # creates a new task index
     # return label of new task
     def create_empty_task(self):
-        label_idx = self.generate_next_label(list(self.taskdf.index.values), prefix="t")
-        self.taskdf.loc[label_idx] = {"label":"///",
-                                        "seen":0,
-                                        "due":None,
-                                        "completed":False,
-                                        "value":0.0}
+        label_idx = generate_next_label(list(self.taskdf.index.values), prefix="t")
+        self.taskdf.loc[label_idx] = {"label": "///",
+                                      "seen": 0,
+                                      "due": None,
+                                      "completed": False,
+                                      "value": 0.0}
         # add task to nesting matrix
         self.nestmat[label_idx] = 0
         return label_idx
@@ -116,13 +119,13 @@ class Model(QObject):
     # creates a new shelf index
     # return label of new shelf
     def create_empty_shelf(self):
-        label_idx = self.generate_next_label(list(self.shelfdf.index.values), prefix="s")
-        self.shelfdf.loc[label_idx] = {"title":"///",
-                                        "seen":0,
-                                        "is_filter":False,
-                                        "filter_string":"",
-                                        "is_sorter":False,
-                                        "sorter_string":""}
+        label_idx = generate_next_label(list(self.shelfdf.index.values), prefix="s")
+        self.shelfdf.loc[label_idx] = {"title": "///",
+                                       "seen": 0,
+                                       "is_filter": False,
+                                       "filter_string": "",
+                                       "is_sorter": False,
+                                       "sorter_string": ""}
         # add shelf to nesting matrix
         if len(self.nestmat.columns) > 0:
             self.nestmat.loc[label_idx] = 0
@@ -164,7 +167,7 @@ class Model(QObject):
                 return False, "Can't remove task from filter shelf"
             self.nestmat.loc[shelf, self.nestmat.loc[shelf] >= prev_idx] -= 1
             self.run_on_tree(task, True, False, lambda **c:
-                            self.increment_seen(**c, amount=-self.shelfdf.at[shelf,"seen"]))
+                             self.increment_seen(**c, amount=-self.shelfdf.at[shelf, "seen"]))
         # if moving this task to the right, shift indices between the positions to the left
         elif 0 < prev_idx < index:
             self.nestmat.loc[shelf, (self.nestmat.loc[shelf] >= prev_idx) & (self.nestmat.loc[shelf] <= index)] -= 1
@@ -182,7 +185,7 @@ class Model(QObject):
                 return False, "Addition would create circular nesting"
             self.nestmat.loc[shelf, self.nestmat.loc[shelf] >= index] += 1
             self.run_on_tree(task, True, False, lambda **c:
-                            self.increment_seen(**c, amount=self.shelfdf.at[shelf,"seen"]))
+                             self.increment_seen(**c, amount=self.shelfdf.at[shelf, "seen"]))
 
         self.nestmat.at[shelf, task] = index
         self.task_moved_in_shelf.emit(task, shelf, prev_idx, index)
@@ -203,13 +206,13 @@ class Model(QObject):
 
         # don't overwrite an opposite nest
         if prev_idx < 0:
-           return False, "Task is within shelf"
+            return False, "Task is within shelf"
 
         # if removing shelf, shift rightwards indices to the left
         if prev_idx != 0 and index == 0:
             self.nestmat[task][-self.nestmat[task] >= prev_idx] += 1
             self.run_on_tree(shelf, False, False, lambda **c:
-                            self.increment_seen(**c, amount=-self.taskdf.at[task,"seen"]))
+                             self.increment_seen(**c, amount=-self.taskdf.at[task, "seen"]))
         # if moving this shelf to the right, shift indices between the positions to the left
         elif 0 < prev_idx < index:
             self.nestmat[task][(-self.nestmat[task] >= prev_idx) & (-self.nestmat[task] <= index)] += 1
@@ -227,7 +230,7 @@ class Model(QObject):
                 return False, "Addition would create circular nesting"
             self.nestmat[task][-self.nestmat[task] >= index] -= 1
             self.run_on_tree(shelf, False, False, lambda **c:
-                            self.increment_seen(**c, amount=self.taskdf.at[task,"seen"]))
+                             self.increment_seen(**c, amount=self.taskdf.at[task, "seen"]))
 
         self.nestmat.at[shelf, task] = -index
         self.shelf_moved_in_task.emit(shelf, task, prev_idx, index)
@@ -267,7 +270,6 @@ class Model(QObject):
             self.run_on_tree(new_task, True, False, lambda **c: self.increment_seen(**c, amount=1))
         self.task_in_stage_changed.emit(prev_task if prev_task is not None else None,
                                         new_task if new_task is not None else None)
-
 
     # edit task data via dict and check against relevant columns
     # return tuple: (success of program, termination message)
@@ -367,7 +369,6 @@ class Model(QObject):
         # delete from nesting list
         self.nestmat.drop(index=shelf, inplace=True)
 
-
     # sorter and filter methods should be rewritten to use pandas functionality
 
     # apply filter to task, return boolean for if the task passes
@@ -379,24 +380,24 @@ class Model(QObject):
         filters = self.shelfdf.loc[self.shelfdf["is_filter"]]
         filter_strings = filters["filter_string"]
         filter_ids = filters.index
-        for string, id in zip(filter_strings, filter_ids):
+        for string, dfid in zip(filter_strings, filter_ids):
             if self.run_filter_on(task, string):
                 if self.nestmat.at[id, task] == 0:
-                    self.position_task_in_shelf(task, id, filter_override=True)
+                    self.position_task_in_shelf(task, dfid, filter_override=True)
             else:
                 if self.nestmat.at[id, task] != 0:
-                    self.position_task_in_shelf(task, id, idx=0, filter_override=True)
+                    self.position_task_in_shelf(task, dfid, idx=0, filter_override=True)
 
     # check all tasks against this filter and add or remove ones when necessary
     def refilter_shelf(self, shelf):
         f_string = self.shelfdf.at[shelf, "filter_string"]
-        for t in self.taskdf.index:
-            if self.run_filter_on(t, f_string):
-                if self.nestmat.at[shelf, t] == 0:
-                    self.position_task_in_shelf(t, shelf, filter_override=True)
+        for task in self.taskdf.index:
+            if self.run_filter_on(task, f_string):
+                if self.nestmat.at[shelf, task] == 0:
+                    self.position_task_in_shelf(task, shelf, filter_override=True)
             else:
-                if self.nestmat.at[shelf, t] != 0:
-                    self.position_task_in_shelf(t, shelf, idx=0, filter_override=True)
+                if self.nestmat.at[shelf, task] != 0:
+                    self.position_task_in_shelf(task, shelf, idx=0, filter_override=True)
 
     # apply sorter to task, return its resulting integer weight
     def run_sorter_on(self, task, sorter_string):
@@ -408,20 +409,20 @@ class Model(QObject):
         shelves = strip.index[strip.values > 0]
         sorters = self.shelfdf.loc[shelves].loc[self.shelfdf["is_sorter"]]
         sorter_ids = sorters.index
-        for id in sorter_ids:
-            index = self.sort_task_into_shelf(task, id)
-            if index != self.nestmat.at[id, task]:
-                self.position_task_in_shelf(task, id, idx=index, sorter_override=True)
+        for dfid in sorter_ids:
+            index = self.sort_task_into_shelf(task, dfid)
+            if index != self.nestmat.at[dfid, task]:
+                self.position_task_in_shelf(task, dfid, idx=index, sorter_override=True)
 
     # fix positions of tasks in shelf to match  the
     def resort_shelf(self, shelf):
         s_string = self.shelfdf.at[shelf, "sorter_string"]
         strip = self.nestmat.loc[shelf]
-        curr_order = strip[strip.values>0]
+        curr_order = strip[strip.values > 0]
         new_order = pd.Series([self.run_sorter_on(x, s_string) for x in curr_order.keys()], curr_order.keys())
         new_order = new_order.sort_values(ascending=False)
-        for i, t in enumerate(reversed(new_order.keys())):
-            self.position_task_in_shelf(t, shelf, idx=len(new_order)-i, sorter_override=True)
+        for i, task in enumerate(reversed(new_order.keys())):
+            self.position_task_in_shelf(task, shelf, idx=len(new_order)-i, sorter_override=True)
 
     # given that a shelf is sorted, find the index that the task should be inserted to preserve decreasing order
     def sort_task_into_shelf(self, task, shelf):
@@ -481,17 +482,20 @@ class Model(QObject):
         file.write(bytes("<data>\n", 'utf-8'))
         # write shelfdf
         if len(self.shelfdf.index) > 0:
-            self.shelfdf.to_xml(file, attr_cols=self.shelfdf.columns.tolist(), root_name="shelves", row_name="shelf", xml_declaration=False)
+            self.shelfdf.to_xml(file, attr_cols=self.shelfdf.columns.tolist(), root_name="shelves", row_name="shelf",
+                                xml_declaration=False)
         else:
             file.write(bytes("<shelves/>\n", 'utf-8'))
         # write taskdf
         if len(self.taskdf.index) > 0:
-            self.taskdf.to_xml(file, attr_cols=self.taskdf.columns.tolist(), root_name="tasks", row_name="task", xml_declaration=False)
+            self.taskdf.to_xml(file, attr_cols=self.taskdf.columns.tolist(), root_name="tasks", row_name="task",
+                               xml_declaration=False)
         else:
             file.write(bytes("<tasks/>\n", 'utf-8'))
         # write nestmat
         if len(self.nestmat.index) > 0:
-            self.nestmat.replace(0, None).to_xml(file, attr_cols=self.nestmat.columns.tolist(), root_name="nesting", row_name="shelf", xml_declaration=False)
+            self.nestmat.replace(0, None).to_xml(file, attr_cols=self.nestmat.columns.tolist(), root_name="nesting",
+                                                 row_name="shelf", xml_declaration=False)
         else:
             file.write(bytes("<nesting/>\n", 'utf-8'))
         # write rack
@@ -545,28 +549,28 @@ class Model(QObject):
                 self.shelfdf["filter_string"] = self.shelfdf["filter_string"].fillna("")
                 self.shelfdf["sorter_string"] = self.shelfdf["sorter_string"].fillna("")
         else:
-            self.shelfdf = pd.DataFrame(columns=self.shelfcolumns.keys())
+            self.shelfdf = pd.DataFrame(columns=list(self.shelfcolumns.keys()))
         # open task dataframe
         if has_data["tasks"]:
             with open(file.name, "r") as file:
                 self.taskdf = pd.read_xml(file, xpath="/data/tasks/task").set_index("index")
         else:
-            self.taskdf = pd.DataFrame(columns=self.taskcolumns.keys())
+            self.taskdf = pd.DataFrame(columns=list(self.taskcolumns.keys()))
         # open nesting matrix
         if has_data["nesting"]:
             with open(file.name, "r") as file:
-                self.nestmat = (pd.read_xml(file, xpath="/data/nesting/shelf") # read entries
-                                    .set_index("index") # set dataframe index to index columb
-                                    .fillna(0) # replace missing values with 0 (for no nesting)
-                                    .astype(int)) # convert floats to integers
+                self.nestmat = (pd.read_xml(file, xpath="/data/nesting/shelf")  # read entries
+                                  .set_index("index")  # set dataframe index to index columb
+                                  .fillna(0)  # replace missing values with 0 (for no nesting)
+                                  .astype(int))  # convert floats to integers
 
                 # add shelves missing from matrix
-                missing_row = pd.Series([s for s in self.shelfdf.index if s not in self.nestmat.index])
+                missing_row = pd.Series([si for si in self.shelfdf.index if si not in self.nestmat.index])
                 mis_r_df = pd.DataFrame(index=missing_row)
                 self.nestmat = pd.concat([self.nestmat, mis_r_df])
 
                 # add tasks missing from matrix
-                missing_col = pd.Series([t for t in self.taskdf.index if t not in self.nestmat.columns])
+                missing_col = pd.Series([ti for ti in self.taskdf.index if ti not in self.nestmat.columns])
                 mis_c_df = pd.DataFrame(columns=missing_col)
                 self.nestmat = pd.concat([self.nestmat, mis_c_df], axis=1)
 
@@ -575,116 +579,3 @@ class Model(QObject):
             self.nestmat = pd.DataFrame()
 
         self.new_model_loaded.emit(self.stage if self.stage is not None else "", self.rack)
-
-if __name__ == '__main__':
-    m = Model()
-    # m.create_task(**{"label": "groceries", "due": "8/27/23", "completed": False})
-    # m.create_task(**{"label": "ask about being grader", "due": "8/25/23", "completed": True, "subshelf": 2})
-    # m.create_task(**{"label": "get dinner", "due": "8/24/23", "completed": False})
-    # m.create_shelf(**{"title": "chores", "tasks": []})
-    # m.create_shelf(**{"title": "dumb", "tasks": [0,2]})
-    # m.add_tasks_to_shelf(1,1)
-    # m.add_shelves_to_rack([0,1])
-
-    # tasks = m.taskdf.sort_values("due")
-    # print(m.rack)
-    # print(m.shelfdf.iloc[m.rack])
-    # print(m.taskdf.iloc[m.taskdf.iloc[1].subshelf])
-
-    s = [m.create_empty_shelf(),
-         m.create_empty_shelf(),
-         m.create_empty_shelf(),
-         m.create_empty_shelf()]
-    t = [m.create_empty_task(),
-         m.create_empty_task(),
-         m.create_empty_task(),
-         m.create_empty_task(),
-         m.create_empty_task()]
-
-    print(m.position_task_in_shelf(t[0], s[0], idx=1))
-    print(m.position_task_in_shelf(t[1], s[0], idx=1))
-    print(m.position_task_in_shelf(t[2], s[0], idx=1))
-    print(m.position_task_in_shelf(t[4], s[0], idx=2))
-    print(m.position_shelf_in_task(s[0], t[3], idx=1))
-    print(m.position_shelf_in_task(s[1], t[3], idx=1))
-    print(m.position_shelf_in_task(s[2], t[3], idx=1))
-    print(m.position_shelf_in_task(s[3], t[3], idx=2))
-    m.add_shelf_to_rack(s[0], insert_at=0)
-    m.add_shelf_to_rack(s[1], insert_at=0)
-    m.add_shelf_to_rack(s[2], insert_at=0)
-    m.add_shelf_to_rack(s[3], insert_at=3)
-
-    print(m.position_task_in_shelf(t[0], s[1], idx=1))
-    print(m.position_task_in_shelf(t[1], s[1], idx=2))
-    print(m.position_task_in_shelf(t[2], s[1], idx=3))
-    print(m.position_task_in_shelf(t[4], s[1], idx=1))
-    print(m.position_task_in_shelf(t[0], s[3], idx=1))
-    print(m.position_task_in_shelf(t[1], s[3], idx=1))
-    print(m.position_task_in_shelf(t[2], s[3], idx=2))
-    print(m.position_task_in_shelf(t[4], s[3], idx=2))
-
-    m.edit_shelf(s[1], is_sorter=True, sorter_string="yup!")
-    #m.edit_shelf(s[3], is_filter=True, filter_string="yup!")
-
-    print("_____TASKS_____")
-    print(m.taskdf)
-    print("_____SHELVES_____")
-    print(m.shelfdf)
-    print("_____MATRIX_____")
-    print(m.nestmat)
-    print("_____RACK_____")
-    print(m.rack)
-    print("_____STAGE_____")
-    print(m.stage)
-
-    print(m.edit_task(t[0], value=41.2))
-    print(m.edit_task(t[1], completed=True, value=0.2))
-    print(m.edit_task(t[2], value=200.0))
-    print(m.edit_task(t[4], completed=True, value=192.1))
-    print(m.edit_shelf(s[3], is_sorter=True, sorter_string="yup!"))
-    print(m.edit_task(t[4], completed=True, value=-92.1))
-
-    print(m.position_task_in_shelf(t[0], s[2], idx=1))
-    print(m.position_task_in_shelf(t[4], s[2], idx=2))
-    print(m.position_task_in_shelf(t[2], s[2], idx=3))
-    print(m.edit_shelf(s[2], is_sorter=True, sorter_string="yup!"))
-
-    print(m.nestmat)
-
-    print(m.edit_task(t[4], label="AAAAAAAAAA", completed=True, value=92.1))
-    print(m.position_task_in_shelf(t[1], s[2]))
-
-    print(m.taskdf)
-    print(m.nestmat)
-
-    print(m.edit_task(t[3], label="yup"))
-
-    #print(t[1], s[0])
-    #m.erase_task(t[1])
-    #m.erase_shelf(s[0])
-    #print(m.taskdf)
-    #print(m.shelfdf)
-    #print(m.nestmat)
-
-    print(m.get_task_info([t[4]]))
-    print(m.get_shelf_info([s[2],s[1]]))
-    print(m.get_subtasks(s[1]))
-    print(m.get_subshelves(t[3]))
-
-    print(m.position_shelf_in_task(s[1], t[3], idx=0))
-    print(m.position_task_in_shelf(t[3], s[1]))
-    m.add_shelf_to_rack(s[1])
-
-    print(m.position_task_in_shelf(t[0],s[0],idx=0))
-    print(m.position_shelf_in_task(s[2],t[3],idx=0))
-    print(m.position_task_in_shelf(t[1],s[0],idx=2))
-
-    print(m.edit_shelf(s[2], is_filter=True))
-
-    print(m.rack)
-    print(m.shelfdf)
-    print(m.taskdf)
-    print(m.nestmat)
-
-    print(m.get_supershelves(t[1], include_index=True))
-    print(m.get_supertasks(s[0], include_index=True))

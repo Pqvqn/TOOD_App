@@ -1,9 +1,8 @@
-import pandas as pd
 from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSize, QTime
 from PyQt5.QtGui import QDrag, QPixmap
-from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QBoxLayout, QFrame, \
-    QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QStyleFactory, QGridLayout, QMessageBox, \
-    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QLayout, QAbstractScrollArea, QApplication, QWIDGETSIZE_MAX
+from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QFrame, \
+    QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QGridLayout, QMessageBox, \
+    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QApplication
 
 
 class View(QMainWindow):
@@ -101,7 +100,7 @@ class View(QMainWindow):
         if self.controller.widget_being_edited is not None:
             self.process_click_during_edit(event.pos())
 
-    def eventFilter(self, object, event):
+    def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseButtonPress:
             if self.controller.widget_being_edited is not None:
                 self.process_click_during_edit(event.pos())
@@ -181,14 +180,8 @@ class Task(QFrame):
         collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
         collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
 
-        # if not expanded:
-        #     id_label.hide()
-        # collapse_grid.collapse_toggled.connect(lambda opened: id_label.show() if opened else id_label.close())
-
         v_layout = QVBoxLayout()
         v_layout.addWidget(collapse_grid)
-        #v_layout.addLayout(collapse_tree)
-        #v_layout.addWidget(id_label, alignment=Qt.AlignBottom)
         self.setLayout(v_layout)
 
         self.setFrameStyle(QFrame.Panel | QFrame.Plain)
@@ -221,7 +214,6 @@ class Task(QFrame):
         self.due_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("due", x)))
         self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
 
-
     # set width to accomodate children and update parent if width changes
     def check_width(self):
         max_wid = 0
@@ -241,8 +233,8 @@ class Task(QFrame):
                 self.owner.check_width()
 
     # sets whether the task is highlighted for edit mode
-    def set_edit_look(self, toEdit):
-        if toEdit:
+    def set_edit_look(self, to_edit):
+        if to_edit:
             self.setStyleSheet("""
                 Task{
                     border: 2.5px solid blue;
@@ -269,7 +261,8 @@ class Task(QFrame):
             self.value_edit.set_state(str(edit_dict["value"]), edit=False)
 
         # update summary of data in this task for hover
-        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n Due at {self.due_edit.label.text()}</p>")
+        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n"
+                        f"Due at {self.due_edit.label.text()}</p>")
 
     # close all open edit widgets
     def close_fields(self):
@@ -330,7 +323,7 @@ class Task(QFrame):
             return
 
         # only process dragging once the mouse has moved far enough
-        if ((e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6):
+        if (e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6:
             return
 
         # handle drag
@@ -387,7 +380,7 @@ class Task(QFrame):
 
     # accept dragged shelves or shelf ids
     def dragEnterEvent(self, e):
-        if e.mimeData().text()[0]=='s' or isinstance(e.source(), Shelf):
+        if e.mimeData().text()[0] == 's' or isinstance(e.source(), Shelf):
             e.accept()
 
     # handle placement of dropped shelves
@@ -415,6 +408,7 @@ class Task(QFrame):
             if not added:
                 self.view.controller.insert_shelf_id_in_task(shelf_id, self, self.container_layout.count()+1)
             e.accept()
+
 
 class Shelf(QFrame):
 
@@ -570,8 +564,8 @@ class Shelf(QFrame):
                 self.owner.check_width()
 
     # sets whether the shelf is highlighted for edit mode
-    def set_edit_look(self, toEdit):
-        if toEdit:
+    def set_edit_look(self, to_edit):
+        if to_edit:
             self.setStyleSheet("""
             Shelf{
                 border: 2.5px solid blue;
@@ -660,7 +654,7 @@ class Shelf(QFrame):
             return
 
         # only process dragging once the mouse has moved far enough
-        if ((e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6):
+        if (e.pos() - self.dragStartPosition).manhattanLength() < QApplication.startDragDistance() * 6:
             return
 
         # handle drag
@@ -713,7 +707,7 @@ class Shelf(QFrame):
 
     # accept dragged tasks or task ids
     def dragEnterEvent(self, e):
-        if e.mimeData().text()[0]=='t' or isinstance(e.source(), Task):
+        if e.mimeData().text()[0] == 't' or isinstance(e.source(), Task):
             e.accept()
 
     # handle placement of dropped tasks
@@ -743,6 +737,7 @@ class Shelf(QFrame):
             if not added:
                 self.view.controller.insert_task_id_in_shelf(task_id, self, self.container_layout.count()+1)
             e.accept()
+
 
 class Rack(QScrollArea):
 
@@ -791,7 +786,6 @@ class Rack(QScrollArea):
     # handle placement of dropped shelves
     def dropEvent(self, e):
         pos = e.pos()
-        widget = e.source()
         added = False
         shelf_id = e.mimeData().text()
 
@@ -807,6 +801,7 @@ class Rack(QScrollArea):
         if not added:
             self.view.controller.insert_shelf_id_in_rack(shelf_id, self.container_layout.count()+1)
         e.accept()
+
 
 class Stage(QGroupBox):
 
@@ -859,7 +854,7 @@ class Stage(QGroupBox):
 
     # accept dragged tasks or task ids
     def dragEnterEvent(self, e):
-        if e.mimeData().text()[0]=='t' or isinstance(e.source(), Task):
+        if e.mimeData().text()[0] == 't' or isinstance(e.source(), Task):
             e.accept()
 
     # replace task with dropped task
@@ -901,7 +896,6 @@ class Editable(QStackedWidget):
             self.edit_began.emit()
 
     def focus(self):
-        self.edit.selectAll()
         self.edit.setFocus()
 
     # set state of label and edit widgets

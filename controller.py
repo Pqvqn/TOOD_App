@@ -2,12 +2,14 @@ from PyQt5.QtCore import QObject, pyqtSlot
 from PyQt5.QtWidgets import QWidget
 from view import Task, Shelf, Rack, Stage
 
+
 class Controller(QObject):
 
     def __init__(self, model):
         super().__init__()
 
         self.model = model
+        self.view = None
 
         # the current task or shelf that has controller is tracking edits for
         self.widget_being_edited = None
@@ -49,7 +51,7 @@ class Controller(QObject):
     def find_instances(self, df_id, is_id_task):
         instances = []
         if is_id_task:
-            # add stage appearance as an intsance
+            # add stage appearance as an instance
             if df_id == self.model.stage:
                 instances.append(self.view.stage.task)
             # search up the tree and back down for instances of the parent
@@ -115,7 +117,7 @@ class Controller(QObject):
             success = self.model.position_shelf_in_task(shelf.df_id, parent.df_id, idx=0)
         elif isinstance(parent, Rack):
             self.model.remove_shelf_from_rack(self.view.rack.get_index(shelf))
-        if len(success)>1 and not success[0]:
+        if len(success) > 1 and not success[0]:
             self.view.show_warning(success[1])
 
     @pyqtSlot(QWidget)
@@ -126,7 +128,7 @@ class Controller(QObject):
             success = self.model.position_task_in_shelf(task.df_id, parent.df_id, idx=0)
         elif isinstance(parent, Stage):
             self.model.replace_task_in_stage(None)
-        if len(success)>1 and not success[0]:
+        if len(success) > 1 and not success[0]:
             self.view.show_warning(success[1])
 
     @pyqtSlot(QWidget, str)
@@ -161,7 +163,7 @@ class Controller(QObject):
             self.edit_dict[change[0]] = change[1]
             # mirror change onto other widgets
             for inst in self.edit_instances:
-                inst.edit_fields({change[0] : change[1]})
+                inst.edit_fields({change[0]: change[1]})
 
     @pyqtSlot()
     def widget_edit_ended(self):
@@ -179,21 +181,21 @@ class Controller(QObject):
         elif isinstance(self.widget_being_edited, Task):
             success = self.model.edit_task(df_id, **self.edit_dict)
 
-        if len(success)>1 and success[0]:
+        if len(success) > 1 and success[0]:
             # clear edit variables
             self.widget_being_edited = None
             self.edit_dict = {}
             self.edit_instances = []
 
-        elif len(success)>1:
+        elif len(success) > 1:
             self.view.show_warning(success[1])
 
     @pyqtSlot(QWidget, tuple)
     def direct_field_change(self, widget, change):
         if isinstance(widget, Task):
-            success = self.model.edit_task(widget.df_id, **{change[0] : change[1]})
+            success = self.model.edit_task(widget.df_id, **{change[0]: change[1]})
         else:
-            success = self.model.edit_shelf(widget.df_id, **{change[0] : change[1]})
+            success = self.model.edit_shelf(widget.df_id, **{change[0]: change[1]})
         if not success[0]:
             self.view.show_warning(success[1])
 
@@ -226,77 +228,85 @@ class Controller(QObject):
                 self.model.write_to_file(tood_file)
 
     def duplicate_task_id(self, og_id):
-        if not og_id in self.model.taskdf.index:
+        if og_id not in self.model.taskdf.index:
             self.view.show_warning(og_id+" is an invalid task ID")
             return
 
         index = self.model.create_empty_task()
         info_dict = self.model.get_task_info([og_id])[og_id]
         info_dict.pop("seen")
-        self.model.edit_task(index, **info_dict)
+        success = self.model.edit_task(index, **info_dict)
+        if not success[0]:
+            self.view.show_warning(success[1])
         return index
 
     def erase_task_id(self, df_id):
-        if not df_id in self.model.taskdf.index:
+        if df_id not in self.model.taskdf.index:
             self.view.show_warning(df_id+" is an invalid task ID")
             return
 
         self.model.erase_task(df_id)
 
     def insert_task_id_in_shelf(self, task_id, shelf, idx):
-        if not task_id in self.model.taskdf.index:
+        if task_id not in self.model.taskdf.index:
             self.view.show_warning(task_id+" is an invalid task ID")
             return
 
-        self.model.position_task_in_shelf(task_id, shelf.df_id, idx=idx)
+        success = self.model.position_task_in_shelf(task_id, shelf.df_id, idx=idx)
+        if not success[0]:
+            self.view.show_warning(success[1])
 
     def is_task_id_in_shelf(self, task_id, shelf):
-        if not task_id in self.model.taskdf.index:
+        if task_id not in self.model.taskdf.index:
             self.view.show_warning(task_id+" is an invalid task ID")
             return
 
         return task_id in self.model.get_subtasks(shelf.df_id)
 
     def set_task_id_in_stage(self, task_id):
-        if not task_id in self.model.taskdf.index:
+        if task_id not in self.model.taskdf.index:
             self.view.show_warning(task_id+" is an invalid task ID")
 
         self.model.replace_task_in_stage(task_id)
 
     def duplicate_shelf_id(self, og_id):
-        if not og_id in self.model.shelfdf.index:
+        if og_id not in self.model.shelfdf.index:
             self.view.show_warning(og_id+" is an invalid shelf ID")
             return
 
         index = self.model.create_empty_shelf()
         info_dict = self.model.get_shelf_info([og_id])[og_id]
         info_dict.pop("seen")
-        self.model.edit_shelf(index, **info_dict)
+        success = self.model.edit_shelf(index, **info_dict)
+        if not success[0]:
+            self.view.show_warning(success[1])
         return index
 
     def erase_shelf_id(self, df_id):
-        if not df_id in self.model.shelfdf.index:
+        if df_id not in self.model.shelfdf.index:
             self.view.show_warning(df_id+" is an invalid shelf ID")
             return
 
         self.model.erase_shelf(df_id)
 
     def insert_shelf_id_in_task(self, shelf_id, task, idx):
-        if not shelf_id in self.model.shelfdf.index:
+        if shelf_id not in self.model.shelfdf.index:
             self.view.show_warning(shelf_id+" is an invalid shelf ID")
             return
 
-        self.model.position_shelf_in_task(shelf_id, task.df_id, idx=idx)
+        success = self.model.position_shelf_in_task(shelf_id, task.df_id, idx=idx)
+        if not success[0]:
+            self.view.show_warning(success[1])
 
     def is_shelf_id_in_task(self, shelf_id, task):
-        if not shelf_id in self.model.shelfdf.index:
+        if shelf_id not in self.model.shelfdf.index:
             self.view.show_warning(shelf_id+" is an invalid shelf ID")
             return
 
         return shelf_id in self.model.get_subshelves(task.df_id)
 
     def insert_shelf_id_in_rack(self, shelf_id, idx):
-        if not shelf_id in self.model.shelfdf.index:
+        if shelf_id not in self.model.shelfdf.index:
             self.view.show_warning(shelf_id+" is an invalid shelf ID")
             return
 
@@ -314,11 +324,11 @@ class Controller(QObject):
     def move_shelf_in_task(self, shelf, task, start, end):
         task_instances = self.find_instances(task, True)
         # remove
-        if start!=0:
+        if start != 0:
             for t_i in task_instances:
                 t_i.remove_child(t_i.get_child(start-1))
         # add
-        if end!=0:
+        if end != 0:
             for t_i in task_instances:
                 s_i = self.assemble_tree(shelf, False)
                 t_i.insert_child(s_i, end-1)
@@ -327,11 +337,11 @@ class Controller(QObject):
     def move_task_in_shelf(self, task, shelf, start, end):
         shelf_instances = self.find_instances(shelf, False)
         # remove
-        if start!=0:
+        if start != 0:
             for s_i in shelf_instances:
                 s_i.remove_child(s_i.get_child(start-1))
         # add
-        if end!=0:
+        if end != 0:
             for s_i in shelf_instances:
                 t_i = self.assemble_tree(task, True)
                 s_i.insert_child(t_i, end-1)
@@ -368,5 +378,3 @@ class Controller(QObject):
         self.view.rack.clear()
         for r in reversed(rack):
             self.add_shelf_to_rack(r, 0)
-
-
