@@ -54,7 +54,7 @@ class Model(QObject):
                              "sorter_string": str}
 
         # dataframe of task data by task index
-        self.taskdf = pd.DataFrame(columns=list(self.taskattributes).extend(self.taskfields))
+        self.taskdf = pd.DataFrame(columns=list(self.taskattributes) + list(self.taskfields))
         # dataframe of shelf data by shelf index
         self.shelfdf = pd.DataFrame(columns=list(self.shelfattributes.keys()))
         # nesting matrix of ordering of tasks within shelves and vice-versa; tasks are columns, shelves are rows
@@ -386,7 +386,7 @@ class Model(QObject):
             return False, label + " is an internal task attribute"
 
         self.taskfields[label] = f_type
-        self.taskdf.loc[label] = None
+        self.taskdf[label] = None
 
         self.field_added.emit(label, f_type)
         return True, ""
@@ -616,22 +616,30 @@ class Model(QObject):
                 self.shelfdf["sorter_string"] = self.shelfdf["sorter_string"].fillna("")
         else:
             self.shelfdf = pd.DataFrame(columns=list(self.shelfattributes.keys()))
+
         # read in custom task fields
         if has_data["fields"]:
             fields_loc = re.search(re.compile(b"(?<=<fields>).*(?=</fields>)", flags=re.DOTALL), data).span()
             field_list = re.findall(re.compile(b"(?<=<field>)\n?.*\n?(?=</field>)"), data[fields_loc[0]:fields_loc[1]])
             self.taskfields = {str(x, 'UTF-8').split("=")[0]:str(x, 'UTF-8').split("=")[1] for x in field_list}
+
         # open task dataframe
         if has_data["tasks"]:
             with open(file.name, "r") as file:
                 self.taskdf = pd.read_xml(file, xpath="/data/tasks/task").set_index("index")
+
+            # add fields missing from task df
+            missing_col = pd.Series([fi for fi in self.taskfields.keys() if fi not in self.taskdf.columns])
+            mis_c_df = pd.DataFrame(columns=missing_col)
+            self.taskdf = pd.concat([self.taskdf, mis_c_df], axis=1)
         else:
-            self.taskdf = pd.DataFrame(columns=list(self.taskattributes).extend(self.taskfields))
+            self.taskdf = pd.DataFrame(columns=list(self.taskattributes)+list(self.taskfields))
+
         # open nesting matrix
         if has_data["nesting"]:
             with open(file.name, "r") as file:
                 self.nestmat = (pd.read_xml(file, xpath="/data/nesting/shelf")  # read entries
-                                  .set_index("index")  # set dataframe index to index columb
+                                  .set_index("index")  # set dataframe index to index column
                                   .fillna(0)  # replace missing values with 0 (for no nesting)
                                   .astype(int))  # convert floats to integers
 

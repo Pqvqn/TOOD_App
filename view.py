@@ -2,7 +2,7 @@ from PyQt5.QtCore import Qt, QMimeData, pyqtSignal, QEvent, QDateTime, QDir, QSi
 from PyQt5.QtGui import QDrag, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QFrame, \
     QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QGridLayout, QMessageBox, \
-    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QApplication
+    QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QApplication, QComboBox
 
 
 class View(QMainWindow):
@@ -24,28 +24,23 @@ class View(QMainWindow):
         debug_button = QPushButton("debug print")
         debug_button.setFixedSize(150, 75)
 
-        self.copy_shelf_line_edit = QLineEdit()
-        copy_shelf_button = QPushButton("COPY SHELF")
-        self.copy_task_line_edit = QLineEdit()
-        copy_task_button = QPushButton("COPY TASK")
         load_tood_button = QPushButton("LOAD .TOOD")
         save_tood_button = QPushButton("SAVE .TOOD")
-        drag_op_grid = QGridLayout()
-        drag_op_grid.addWidget(self.copy_shelf_line_edit, 1, 1)
-        drag_op_grid.addWidget(copy_shelf_button, 1, 2)
-        drag_op_grid.addWidget(self.copy_task_line_edit, 2, 1)
-        drag_op_grid.addWidget(copy_task_button, 2, 2)
-        drag_op_grid.addWidget(load_tood_button, 3, 1)
-        drag_op_grid.addWidget(save_tood_button, 3, 2)
+        options_grid = QGridLayout()
+        options_grid.addWidget(load_tood_button, 1, 1)
+        options_grid.addWidget(save_tood_button, 1, 2)
 
         self.stage = Stage(self)
+
+        self.custom_fields = FieldControl(self)
 
         left_sidebar = QGroupBox()
         sidebar_layout = QVBoxLayout()
         sidebar_layout.addWidget(self.stage)
+        sidebar_layout.addWidget(self.custom_fields)
         sidebar_layout.addWidget(new_shelf_button, alignment=Qt.AlignHCenter)
         sidebar_layout.addWidget(debug_button, alignment=Qt.AlignHCenter)
-        sidebar_layout.addLayout(drag_op_grid)
+        sidebar_layout.addLayout(options_grid)
         left_sidebar.setLayout(sidebar_layout)
         left_sidebar.setFixedWidth(320)
 
@@ -61,18 +56,12 @@ class View(QMainWindow):
         # event filtering for clicks
         debug_button.installEventFilter(self)
         new_shelf_button.installEventFilter(self)
-        copy_shelf_button.installEventFilter(self)
-        copy_task_button.installEventFilter(self)
-        self.copy_shelf_line_edit.installEventFilter(self)
-        self.copy_task_line_edit.installEventFilter(self)
         load_tood_button.installEventFilter(self)
         save_tood_button.installEventFilter(self)
 
         # connect inputs to controller
         debug_button.pressed.connect(self.controller.debug_print)
         new_shelf_button.pressed.connect(self.controller.new_shelf_in_rack)
-        copy_shelf_button.pressed.connect(lambda: self.controller.copy_shelf(self.copy_shelf_line_edit))
-        copy_task_button.pressed.connect(lambda: self.controller.copy_task(self.copy_task_line_edit))
         self.clicked_out_of_edit.connect(self.controller.widget_edit_ended)
         load_tood_button.pressed.connect(lambda: self.controller.load_tood(
             QFileDialog.getOpenFileName(self, "Open File", QDir.homePath(), "TOOD file (*.tood)")[0]))
@@ -864,15 +853,80 @@ class Stage(QGroupBox):
         e.accept()
 
 
+class FieldControl(QGroupBox):
+
+    def __init__(self, view):
+        super(QGroupBox, self).__init__()
+        self.view = view
+
+        new_field_name = QLineEdit()
+        new_field_type = QComboBox()
+        new_field_type.addItem("spin")
+        new_field_type.addItem("text")
+        new_field_type.addItem("check")
+        new_field_type.addItem("date")
+        new_field_button = QPushButton("+")
+        new_field_button.setFixedSize(45, 24)
+
+        create_row = QHBoxLayout()
+        create_row.addWidget(new_field_name)
+        create_row.addWidget(new_field_type)
+        create_row.addWidget(new_field_button)
+
+        self.field_container = QVBoxLayout()
+        self.field_container.setAlignment(Qt.AlignTop)
+
+        v_layout = QVBoxLayout()
+        v_layout.setAlignment(Qt.AlignTop)
+        v_layout.addLayout(create_row)
+        v_layout.addLayout(self.field_container)
+
+        self.setLayout(v_layout)
+
+        new_field_name.installEventFilter(self.view)
+        new_field_type.installEventFilter(self.view)
+        new_field_button.installEventFilter(self.view)
+        self.installEventFilter(self.view)
+
+        new_field_button.clicked.connect(lambda: self.field_container.addWidget(
+            FieldControl.FieldDeclaration(view, new_field_name.text(), new_field_type.currentText())))
+
+    class FieldDeclaration(QWidget):
+
+        def __init__(self, view, label_text, edit_type):
+            super(QWidget, self).__init__()
+            self.view = view
+
+            label = EditableText(label_text, 30, autoescape=True)
+            type_text = QLabel(edit_type)
+            cancel_button = QPushButton("x")
+            cancel_button.setFixedSize(15, 15)
+            cancel_button.setFlat(True)
+
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(label)
+            h_layout.addWidget(type_text)
+            h_layout.addWidget(cancel_button)
+            self.setLayout(h_layout)
+
+            label.installEventFilter(self.view)
+            type_text.installEventFilter(self.view)
+            cancel_button.installEventFilter(self.view)
+            self.installEventFilter(self.view)
+            cancel_button.clicked.connect(lambda: self.setParent(None))
+
+
 class Editable(QStackedWidget):
     # class for editable widgets that switch between editable input mode and locked in display mode
 
     edit_began = pyqtSignal()
     edit_updated = pyqtSignal()
 
-    def __init__(self, data, height, *args, **kwargs):
+    def __init__(self, data, height, autoescape=False, autoset=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.autoescape = autoescape
+        self.autoset = autoset
         self.fixed_height = height
         self.label = QLabel("")
         self.edit = self.make_edit()
@@ -881,6 +935,8 @@ class Editable(QStackedWidget):
         self.addWidget(self.edit)
         self.setFixedHeight(height)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        if autoescape:
+            self.edit.focus_lost.connect(lambda: self.set_mode(False))
 
     def sizeHint(self):
         return QSize(300, 15)
@@ -909,8 +965,12 @@ class Editable(QStackedWidget):
     def set_mode(self, toEdit):
         if toEdit:
             self.setCurrentWidget(self.edit)
+            if self.autoset:
+                self.set_state(self.label.text(), label=False)
         else:
             self.setCurrentWidget(self.label)
+            if self.autoset:
+                self.set_state(self.edit.text(), edit=False)
 
 
 class EditableText(Editable):
@@ -920,6 +980,8 @@ class EditableText(Editable):
         super().__init__(text, height, *args, **kwargs)
 
         self.edit.textEdited.connect(lambda x: self.edit_updated.emit(x))
+        if self.autoescape:
+            self.edit.returnPressed.connect(lambda: self.set_mode(False))
 
     def make_edit(self):
         return self.DefocusLineEditFix()
@@ -933,6 +995,9 @@ class EditableText(Editable):
     def set_state(self, state, edit=True, label=True):
         if edit:
             self.edit.setText(state)
+            if self.autoescape:
+                self.edit.selectAll()
+                self.edit.setFocus()
         if label:
             self.label.setText(state)
 
