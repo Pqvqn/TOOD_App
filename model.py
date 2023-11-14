@@ -30,18 +30,23 @@ class Model(QObject):
     task_info_changed = pyqtSignal(str, dict)  # task id, all task values to be updated
     shelf_info_changed = pyqtSignal(str, dict)  # shelf id, all shelf values to be updated
     new_model_loaded = pyqtSignal(str, list)  # stage, rack
+    field_added = pyqtSignal(str, type)  # label, field type
+    field_deleted = pyqtSignal(str)  # label
+    field_data_copied = pyqtSignal(str, str)  # original label, copy label
+    field_renamed = pyqtSignal(str, str)  # old label, new label
 
     def __init__(self):
         super(QObject, self).__init__()
 
         # column labels and required types for task dataframe
-        self.taskcolumns = {"label": str,
+        self.taskattributes = {"label": str,
                             "seen": int,
-                            "due": pd.Timestamp,
-                            "completed": bool,
-                            "value": float}
+                            "completed": bool}
+        # column labels for custom task fields in task dataframe
+        self.taskfields = {"due": pd.Timestamp,
+                           "value": float}
         # shelf labels and required types for task dataframe
-        self.shelfcolumns = {"title": str,
+        self.shelfattributes = {"title": str,
                              "seen": int,
                              "is_filter": bool,
                              "filter_string": str,
@@ -49,9 +54,9 @@ class Model(QObject):
                              "sorter_string": str}
 
         # dataframe of task data by task index
-        self.taskdf = pd.DataFrame(columns=list(self.taskcolumns.keys()))
+        self.taskdf = pd.DataFrame(columns=list(self.taskattributes).extend(self.taskfields))
         # dataframe of shelf data by shelf index
-        self.shelfdf = pd.DataFrame(columns=list(self.shelfcolumns.keys()))
+        self.shelfdf = pd.DataFrame(columns=list(self.shelfattributes.keys()))
         # nesting matrix of ordering of tasks within shelves and vice-versa; tasks are columns, shelves are rows
         # positive integers are for task ordering in shelf, negative integers are for shelf ordering in task, 0 is none
         # no recursive loop is allowed to exist
@@ -281,10 +286,14 @@ class Model(QObject):
 
         # make sure all values are of the correct type
         for key in kwargs:
-            if key not in self.taskcolumns:
+            if key not in self.taskattributes and key not in self.taskfields:
                 return False, key + " is not a task parameter"
-            if kwargs[key] is not None and not isinstance(kwargs[key], self.taskcolumns.get(key)):
-                return False, key + " must have type " + self.taskcolumns[key].__name__
+            if kwargs[key] is not None and key in self.taskattributes and not isinstance(kwargs[key],
+                                                                                         self.taskattributes.get(key)):
+                return False, key + " must have type " + self.taskattributes[key].__name__
+            if kwargs[key] is not None and key in self.taskfields and not isinstance(kwargs[key],
+                                                                                     self.taskfields.get(key)):
+                return False, key + " must have type " + self.taskfields[key].__name__
 
         # don't allow internal parameters to be modified
         if "seen" in kwargs:
@@ -306,10 +315,10 @@ class Model(QObject):
     def edit_shelf(self, shelf, **kwargs):
         # make sure all values are of the correct type
         for key in kwargs:
-            if key not in self.shelfcolumns:
+            if key not in self.shelfattributes:
                 return False, key + " is not a shelf parameter"
-            if kwargs[key] is not None and not isinstance(kwargs[key], self.shelfcolumns.get(key)):
-                return False, key + " must have type " + self.shelfcolumns[key].__name__
+            if kwargs[key] is not None and not isinstance(kwargs[key], self.shelfattributes.get(key)):
+                return False, key + " must have type " + self.shelfattributes[key].__name__
 
         # don't create filters that are subshelves of any task
         # if "is_filter" in kwargs and kwargs["is_filter"]:
@@ -368,6 +377,57 @@ class Model(QObject):
 
         # delete from nesting list
         self.nestmat.drop(index=shelf, inplace=True)
+
+    # add a new field for tasks
+    def add_custom_field(self, label, f_type):
+        if label in self.taskfields.keys():
+            return False, label + " is already a field"
+        if label in self.taskattributes.keys():
+            return False, label + " is an internal task attribute"
+
+        self.taskfields[label] = f_type
+        self.taskdf.loc[label] = None
+
+        self.field_added.emit(label, f_type)
+        return True, ""
+
+    # delete a field from tasks
+    def delete_custom_field(self, label):
+        if label not in self.taskfields.keys():
+            return False, label + " isn't an existing field"
+
+        self.taskfields.pop(label)
+        self.taskdf.drop(index=label, inplace=True)
+
+        self.field_deleted.emit(label)
+        return True, ""
+
+    # copy current task data for a field to another field
+    def copy_field_data(self, from_l, to_l):
+        if from_l not in self.taskfields.keys():
+            return False, from_l + " isn't an existing field"
+        if to_l not in self.taskfields.keys():
+            return False, to_l + " isn't an existing field"
+
+        self.taskdf[to_l] = self.taskdf[from_l]
+
+        self.field_data_copied.emit(from_l, to_l)
+        return True, ""
+
+    # change the label for a field
+    def rename_field(self, old_l, new_l):
+        if new_l in self.taskfields.keys():
+            return False, new_l + " is already a field"
+        if new_l in self.taskattributes.keys():
+            return False, new_l + " is an internal task attribute"
+        if old_l not in self.taskfields.keys():
+            return False, old_l + " isn't an existing field"
+
+        self.taskfields[new_l] = self.taskfields.pop(old_l)
+        self.taskdf.rename(columns={old_l: new_l})
+
+        self.field_renamed.emit(old_l, new_l)
+        return True, ""
 
     # sorter and filter methods should be rewritten to use pandas functionality
 
@@ -486,6 +546,14 @@ class Model(QObject):
                                 xml_declaration=False)
         else:
             file.write(bytes("<shelves/>\n", 'utf-8'))
+        # write taskfields
+        if len(self.taskfields) > 0:
+            file.write(bytes("<fields>\n", 'utf-8'))
+            for (k, v) in self.taskfields:
+                file.write(bytes("  <field>" + k + "=" + v + "</field>\n", 'utf-8'))
+            file.write(bytes("</fields>\n", 'utf-8'))
+        else:
+            file.write(bytes("<fields/>\n", 'utf-8'))
         # write taskdf
         if len(self.taskdf.index) > 0:
             self.taskdf.to_xml(file, attr_cols=self.taskdf.columns.tolist(), root_name="tasks", row_name="task",
@@ -521,11 +589,9 @@ class Model(QObject):
         # find rack and stage values
         with open(file.name, "r+") as file:
             data = mmap.mmap(file.fileno(), 0)
-            has_data["shelves"] = re.search(b"<shelves/>", data) is None
-            has_data["tasks"] = re.search(b"<tasks/>", data) is None
-            has_data["nesting"] = re.search(b"<nesting/>", data) is None
-            has_data["rack"] = re.search(b"<rack/>", data) is None
-            has_data["stage"] = re.search(b"<stage/>", data) is None
+            data_sects = ["shelves", "fields", "tasks", "nesting", "rack", "stage"]
+            for d_s in data_sects:
+                has_data[d_s] = re.search(b"<"+d_s+b"/>", data) is None
 
             if has_data["rack"]:
                 rack_loc = re.search(re.compile(b"(?<=<rack>).*(?=</rack>)", flags=re.DOTALL), data).span()
@@ -549,13 +615,18 @@ class Model(QObject):
                 self.shelfdf["filter_string"] = self.shelfdf["filter_string"].fillna("")
                 self.shelfdf["sorter_string"] = self.shelfdf["sorter_string"].fillna("")
         else:
-            self.shelfdf = pd.DataFrame(columns=list(self.shelfcolumns.keys()))
+            self.shelfdf = pd.DataFrame(columns=list(self.shelfattributes.keys()))
+        # read in custom task fields
+        if has_data["fields"]:
+            fields_loc = re.search(re.compile(b"(?<=<fields>).*(?=</fields>)", flags=re.DOTALL), data).span()
+            field_list = re.findall(re.compile(b"(?<=<field>)\n?.*\n?(?=</field>)"), data[fields_loc[0]:fields_loc[1]])
+            self.taskfields = {str(x, 'UTF-8').split("=")[0]:str(x, 'UTF-8').split("=")[1] for x in field_list}
         # open task dataframe
         if has_data["tasks"]:
             with open(file.name, "r") as file:
                 self.taskdf = pd.read_xml(file, xpath="/data/tasks/task").set_index("index")
         else:
-            self.taskdf = pd.DataFrame(columns=list(self.taskcolumns.keys()))
+            self.taskdf = pd.DataFrame(columns=list(self.taskattributes).extend(self.taskfields))
         # open nesting matrix
         if has_data["nesting"]:
             with open(file.name, "r") as file:
