@@ -888,8 +888,21 @@ class FieldControl(QGroupBox):
         new_field_button.installEventFilter(self.view)
         self.installEventFilter(self.view)
 
-        new_field_button.clicked.connect(lambda: self.field_container.addWidget(
-            FieldControl.FieldDeclaration(view, new_field_name.text(), new_field_type.currentText())))
+        new_field_button.clicked.connect(lambda: self.view.controller.field_added(new_field_name.text(),
+                                                                                  new_field_type.currentText()))
+
+    def add_field(self, label, edit_type):
+        self.field_container.addWidget(FieldControl.FieldDeclaration(self.view, label, edit_type))
+
+    def delete_field(self, label):
+        for i in range(self.field_container.count()):
+            if self.field_container.itemAt(i).widget().label.label.text() == label:
+                self.field_container.itemAt(i).widget().setParent(None)
+
+    def rename_field(self, old_label, new_label):
+        for i in range(self.field_container.count()):
+            if self.field_container.itemAt(i).widget().label.label.text() == old_label:
+                self.field_container.itemAt(i).widget().label.set_state(new_label)
 
     class FieldDeclaration(QWidget):
 
@@ -897,23 +910,26 @@ class FieldControl(QGroupBox):
             super(QWidget, self).__init__()
             self.view = view
 
-            label = EditableText(label_text, 30, autoescape=True)
+            self.label = EditableText(label_text, 30, autoescape=True)
             type_text = QLabel(edit_type)
             cancel_button = QPushButton("x")
             cancel_button.setFixedSize(15, 15)
             cancel_button.setFlat(True)
 
             h_layout = QHBoxLayout()
-            h_layout.addWidget(label)
+            h_layout.addWidget(self.label)
             h_layout.addWidget(type_text)
             h_layout.addWidget(cancel_button)
             self.setLayout(h_layout)
 
-            label.installEventFilter(self.view)
+            self.label.installEventFilter(self.view)
             type_text.installEventFilter(self.view)
             cancel_button.installEventFilter(self.view)
             self.installEventFilter(self.view)
-            cancel_button.clicked.connect(lambda: self.setParent(None))
+
+            cancel_button.clicked.connect(lambda: self.view.controller.field_deleted(self.label.label.text()))
+            self.label.focus_ended.connect(lambda: self.view.controller.field_renamed(self.label.label.text(),
+                                                                                      self.label.edit.text()))
 
 
 class Editable(QStackedWidget):
@@ -921,6 +937,7 @@ class Editable(QStackedWidget):
 
     edit_began = pyqtSignal()
     edit_updated = pyqtSignal()
+    focus_ended = pyqtSignal()
 
     def __init__(self, data, height, autoescape=False, autoset=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -968,10 +985,11 @@ class Editable(QStackedWidget):
             if self.autoset:
                 self.set_state(self.label.text(), label=False)
         else:
+            if self.autoescape and self.currentWidget() == self.edit:
+                self.focus_ended.emit()
             self.setCurrentWidget(self.label)
             if self.autoset:
                 self.set_state(self.edit.text(), edit=False)
-
 
 class EditableText(Editable):
     edit_updated = pyqtSignal(str)

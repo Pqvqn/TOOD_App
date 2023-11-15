@@ -1,5 +1,6 @@
-from PyQt5.QtCore import QObject, pyqtSlot
+from PyQt5.QtCore import QObject, pyqtSlot, QDateTime
 from PyQt5.QtWidgets import QWidget
+from pandas import Timestamp
 from view import Task, Shelf, Rack, Stage
 
 
@@ -16,6 +17,20 @@ class Controller(QObject):
         self.edit_dict = {}
         self.edit_instances = []
 
+        # conversion between field inputs and data types
+        self.input_to_type = {
+            "text": str,
+            "spin": float,
+            "check": bool,
+            "date": Timestamp
+        }
+        self.type_to_input = {
+            str: "text",
+            float: "spin",
+            bool: "check",
+            Timestamp: "date"
+        }
+
         # connect model signals to view ui
         self.model.task_in_stage_changed.connect(self.change_task_in_stage)
         self.model.shelf_moved_in_task.connect(self.move_shelf_in_task)
@@ -26,6 +41,9 @@ class Controller(QObject):
         self.model.shelf_info_changed.connect(self.change_shelf_info)
         self.model.task_info_changed.connect(self.change_task_info)
         self.model.new_model_loaded.connect(self.load_new_model)
+        self.model.field_added.connect(self.add_field)
+        self.model.field_deleted.connect(self.delete_field)
+        self.model.field_renamed.connect(self.rename_field)
 
     def register_view(self, view):
         self.view = view
@@ -84,6 +102,8 @@ class Controller(QObject):
         print(self.model.rack)
         print("_____STAGE_____")
         print(self.model.stage)
+        print("_____FIELDS_____")
+        print(self.model.taskfields)
 
     @pyqtSlot()
     def new_shelf_in_rack(self):
@@ -167,6 +187,12 @@ class Controller(QObject):
 
     @pyqtSlot()
     def widget_edit_ended(self):
+        # change types that must be changed for model
+        for key in self.edit_dict:
+            # convert date string into timestamp
+            if self.input_to_type[key] == Timestamp:
+                self.edit_dict[key] = Timestamp(self.edit_dict[key])
+
         # remove the edit highlight from widgets and close all open edit fields
         self.widget_being_edited.set_edit_look(False)
         self.widget_being_edited.close_fields()
@@ -312,6 +338,24 @@ class Controller(QObject):
 
         self.model.add_shelf_to_rack(shelf_id, insert_at=idx)
 
+    @pyqtSlot(str, str)
+    def field_added(self, label, edit_type):
+        success = self.model.add_custom_field(label, self.input_to_type[edit_type])
+        if not success[0]:
+            self.view.show_warning(success[1])
+
+    @pyqtSlot(str)
+    def field_deleted(self, label):
+        success = self.model.delete_custom_field(label)
+        if not success[0]:
+            self.view.show_warning(success[1])
+
+    @pyqtSlot(str, str)
+    def field_renamed(self, old_label, new_label):
+        success = self.model.rename_field(old_label, new_label)
+        if not success[0]:
+            self.view.show_warning(success[1])
+
     # slots from model triggers
     @pyqtSlot(str, str)
     def change_task_in_stage(self, prev_task, new_task):
@@ -378,3 +422,15 @@ class Controller(QObject):
         self.view.rack.clear()
         for r in reversed(rack):
             self.add_shelf_to_rack(r, 0)
+
+    @pyqtSlot(str, type)
+    def add_field(self, label, dtype):
+        self.view.custom_fields.add_field(label, self.type_to_input[dtype])
+
+    @pyqtSlot(str)
+    def delete_field(self, label):
+        self.view.custom_fields.delete_field(label)
+
+    @pyqtSlot(str, str)
+    def rename_field(self, old_label, new_label):
+        self.view.custom_fields.rename_field(old_label, new_label)

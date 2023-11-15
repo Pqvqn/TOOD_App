@@ -43,8 +43,7 @@ class Model(QObject):
                             "seen": int,
                             "completed": bool}
         # column labels for custom task fields in task dataframe
-        self.taskfields = {"due": pd.Timestamp,
-                           "value": float}
+        self.taskfields = {}
         # shelf labels and required types for task dataframe
         self.shelfattributes = {"title": str,
                              "seen": int,
@@ -280,10 +279,6 @@ class Model(QObject):
     # return tuple: (success of program, termination message)
     def edit_task(self, task, **kwargs):
 
-        # change dates to pandas datetime
-        if "due" in kwargs and kwargs["due"] is not None:
-            kwargs["due"] = pd.Timestamp(kwargs["due"])
-
         # make sure all values are of the correct type
         for key in kwargs:
             if key not in self.taskattributes and key not in self.taskfields:
@@ -397,7 +392,7 @@ class Model(QObject):
             return False, label + " isn't an existing field"
 
         self.taskfields.pop(label)
-        self.taskdf.drop(index=label, inplace=True)
+        self.taskdf.drop(columns=label, inplace=True)
 
         self.field_deleted.emit(label)
         return True, ""
@@ -416,6 +411,8 @@ class Model(QObject):
 
     # change the label for a field
     def rename_field(self, old_l, new_l):
+        if new_l == old_l:
+            return True, "no change made"
         if new_l in self.taskfields.keys():
             return False, new_l + " is already a field"
         if new_l in self.taskattributes.keys():
@@ -424,7 +421,7 @@ class Model(QObject):
             return False, old_l + " isn't an existing field"
 
         self.taskfields[new_l] = self.taskfields.pop(old_l)
-        self.taskdf.rename(columns={old_l: new_l})
+        self.taskdf.rename(columns={old_l: new_l}, inplace=True)
 
         self.field_renamed.emit(old_l, new_l)
         return True, ""
@@ -588,10 +585,11 @@ class Model(QObject):
         has_data = {}
         # find rack and stage values
         with open(file.name, "r+") as file:
-            data = mmap.mmap(file.fileno(), 0)
+            data = bytes(mmap.mmap(file.fileno(), 0))
             data_sects = ["shelves", "fields", "tasks", "nesting", "rack", "stage"]
             for d_s in data_sects:
-                has_data[d_s] = re.search(b"<"+d_s+b"/>", data) is None
+                has_data[d_s] = re.search(bytes("<"+d_s+">", 'utf-8'), data) is not None and \
+                                re.search(bytes("</"+d_s+">", 'utf-8'), data) is not None
 
             if has_data["rack"]:
                 rack_loc = re.search(re.compile(b"(?<=<rack>).*(?=</rack>)", flags=re.DOTALL), data).span()
