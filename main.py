@@ -1,6 +1,6 @@
 import sys
 
-from PyQt5.QtCore import QDir
+#from PyQt5.QtCore import QDir
 from PyQt5.QtWidgets import QApplication, QFileDialog, QWidget
 
 from model import Model
