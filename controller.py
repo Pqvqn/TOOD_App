@@ -187,12 +187,6 @@ class Controller(QObject):
 
     @pyqtSlot()
     def widget_edit_ended(self):
-        # change types that must be changed for model
-        for key in self.edit_dict:
-            # convert date string into timestamp
-            if self.input_to_type[key] == Timestamp:
-                self.edit_dict[key] = Timestamp(self.edit_dict[key])
-
         # remove the edit highlight from widgets and close all open edit fields
         self.widget_being_edited.set_edit_look(False)
         self.widget_being_edited.close_fields()

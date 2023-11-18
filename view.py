@@ -128,10 +128,12 @@ class Task(QFrame):
         cancel_button = QPushButton("x")
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
-        self.due_label = QLabel("Due:")
-        self.due_edit = EditableDate(None, 15)
-        self.value_label = QLabel("Value:")
-        self.value_edit = EditableSpin(0, 15)
+        # self.due_label = QLabel("Due:")
+        # self.due_edit = EditableDate(None, 15)
+        # self.value_label = QLabel("Value:")
+        # self.value_edit = EditableSpin(0, 15)
+        self.remind_label = QLabel("Remind @ ")
+        self.remind_edit = EditableDate(None, 15)
 
         new_shelf_button = QPushButton("+")
         new_shelf_button.setFixedSize(40, 20)
@@ -161,13 +163,15 @@ class Task(QFrame):
         collapse_grid.add_child(self.title, (0, 1, 1, 4), (0, 1, 1, 2), align=Qt.AlignLeft)
         collapse_grid.add_child(self.done_button, (1, 4, 1, 2), (0, 3, 1, 2))
         collapse_grid.add_child(cancel_button, (0, 5, 1, 1), (0, 5, 1, 1))
-        collapse_grid.add_child(self.due_label, (1, 1, 1, 1), None)
-        collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
-        collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
-        collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
+        # collapse_grid.add_child(self.due_label, (1, 1, 1, 1), None)
+        # collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
+        # collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
+        # collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
+        collapse_grid.add_child(self.remind_label, (1, 1, 1, 1), None)
+        collapse_grid.add_child(self.remind_edit, (1, 2, 1, 2), None)
 
-        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
-        collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
+        collapse_grid.add_child(self.collapse_tree, (2, 0, 2, 6), (1, 0, 1, 6))
+        collapse_grid.add_child(id_label, (4, 0, 1, 3), None, align=Qt.AlignBottom)
 
         v_layout = QVBoxLayout()
         v_layout.addWidget(collapse_grid)
@@ -197,11 +201,13 @@ class Task(QFrame):
             lambda: self.view.controller.direct_field_change(self, ("completed", self.done_button.text() != "✔")))
 
         self.title.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "title"))
-        self.due_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "due_edit"))
-        self.value_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "value_edit"))
+        # self.due_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "due_edit"))
+        # self.value_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "value_edit"))
+        self.remind_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "remind_edit"))
         self.title.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("label", x)))
-        self.due_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("due", x)))
-        self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
+        # self.due_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("due", x)))
+        # self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
+        self.remind_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("remind", x)))
 
     # set width to accomodate children and update parent if width changes
     def check_width(self):
@@ -243,21 +249,24 @@ class Task(QFrame):
         if "completed" in edit_dict:
             self.done_button.setText("✔" if edit_dict["completed"] else "")
             self.done_button.setStyleSheet(self.button_styles[1 if edit_dict["completed"] else 0])
-        if "due" in edit_dict:
-            self.due_edit.set_state(None if edit_dict["due"] is None else str(edit_dict["due"]))
-        if "value" in edit_dict:
-            self.value_edit.set_state(edit_dict["value"], label=False)
-            self.value_edit.set_state(str(edit_dict["value"]), edit=False)
+        # if "due" in edit_dict:
+        #     self.due_edit.set_state(None if edit_dict["due"] is None else str(edit_dict["due"]))
+        # if "value" in edit_dict:
+        #     self.value_edit.set_state(edit_dict["value"], label=False)
+        #     self.value_edit.set_state(str(edit_dict["value"]), edit=False)
+        if "remind" in edit_dict:
+            self.remind_edit.set_state(None if edit_dict["remind"] is None else str(edit_dict["remind"]))
 
         # update summary of data in this task for hover
         self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n"
-                        f"Due at {self.due_edit.label.text()}</p>")
+                        f"Reminder set for {self.remind_edit.label.text()}</p>")
 
     # close all open edit widgets
     def close_fields(self):
         self.title.set_mode(False)
-        self.due_edit.set_mode(False)
-        self.value_edit.set_mode(False)
+        # self.due_edit.set_mode(False)
+        # self.value_edit.set_mode(False)
+        self.remind_edit.set_mode(False)
 
     def set_owner(self, o):
         self.owner = o

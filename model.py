@@ -41,7 +41,8 @@ class Model(QObject):
         # column labels and required types for task dataframe
         self.taskattributes = {"label": str,
                             "seen": int,
-                            "completed": bool}
+                            "completed": bool,
+                            "remind": pd.Timestamp}
         # column labels for custom task fields in task dataframe
         self.taskfields = {}
         # shelf labels and required types for task dataframe
@@ -114,8 +115,7 @@ class Model(QObject):
         self.taskdf.loc[label_idx] = {"label": "///",
                                       "seen": 0,
                                       "due": None,
-                                      "completed": False,
-                                      "value": 0.0}
+                                      "completed": False}
         # add task to nesting matrix
         self.nestmat[label_idx] = 0
         return label_idx
@@ -285,14 +285,22 @@ class Model(QObject):
                 return False, key + " is not a task parameter"
             if kwargs[key] is not None and key in self.taskattributes and not isinstance(kwargs[key],
                                                                                          self.taskattributes.get(key)):
-                return False, key + " must have type " + self.taskattributes[key].__name__
+                # convert types that need conversion
+                if self.taskattributes.get(key) == pd.Timestamp:
+                    kwargs[key] = pd.Timestamp(kwargs[key])
+                else:
+                    return False, key + " must have type " + self.taskattributes[key].__name__
             if kwargs[key] is not None and key in self.taskfields and not isinstance(kwargs[key],
                                                                                      self.taskfields.get(key)):
-                return False, key + " must have type " + self.taskfields[key].__name__
+                # convert types that need conversion
+                if self.taskfields.get(key) == pd.Timestamp:
+                    kwargs[key] = pd.Timestamp(kwargs[key])
+                else:
+                    return False, key + " must have type " + self.taskfields[key].__name__
 
         # don't allow internal parameters to be modified
         if "seen" in kwargs:
-            return False, "seen is an internal paramter"
+            return False, "seen is an internal parameter"
 
         # update values
         self.taskdf.loc[task, kwargs.keys()] = kwargs.values()
@@ -313,7 +321,11 @@ class Model(QObject):
             if key not in self.shelfattributes:
                 return False, key + " is not a shelf parameter"
             if kwargs[key] is not None and not isinstance(kwargs[key], self.shelfattributes.get(key)):
-                return False, key + " must have type " + self.shelfattributes[key].__name__
+                # convert types that need conversion
+                if self.shelfattributes.get(key) == pd.Timestamp:
+                    kwargs[key] = pd.Timestamp(kwargs[key])
+                else:
+                    return False, key + " must have type " + self.shelfattributes[key].__name__
 
         # don't create filters that are subshelves of any task
         # if "is_filter" in kwargs and kwargs["is_filter"]:
@@ -324,7 +336,7 @@ class Model(QObject):
 
         # don't allow internal parameters to be modified
         if "seen" in kwargs:
-            return False, "seen is an internal paramter"
+            return False, "seen is an internal parameter"
 
         # update values
         self.shelfdf.loc[shelf, kwargs.keys()] = kwargs.values()
