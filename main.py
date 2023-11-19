@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QWidget
 from model import Model
 from controller import Controller
 from view import View
+from pet_controller import PetController
 
 
 class App(QApplication):
@@ -19,6 +20,8 @@ class App(QApplication):
         self.controller = Controller(self.model)
         self.view = View(self.controller)
         self.controller.register_view(self.view)
+
+        self.pet_controller = PetController(self.model, "s1")
 
         self.view.show()
 
