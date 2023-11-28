@@ -135,6 +135,8 @@ class Task(QFrame):
         self.remind_label = QLabel("Remind @ ")
         self.remind_edit = EditableDate(None, 15)
 
+        self.field_box = Task.TaskFieldGroup(self.view)
+
         new_shelf_button = QPushButton("+")
         new_shelf_button.setFixedSize(40, 20)
 
@@ -169,9 +171,10 @@ class Task(QFrame):
         # collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
         collapse_grid.add_child(self.remind_label, (1, 1, 1, 1), None)
         collapse_grid.add_child(self.remind_edit, (1, 2, 1, 2), None)
+        collapse_grid.add_child(self.field_box, (2, 1, 1, 4), None)
 
-        collapse_grid.add_child(self.collapse_tree, (2, 0, 2, 6), (1, 0, 1, 6))
-        collapse_grid.add_child(id_label, (4, 0, 1, 3), None, align=Qt.AlignBottom)
+        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
+        collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
 
         v_layout = QVBoxLayout()
         v_layout.addWidget(collapse_grid)
@@ -244,18 +247,37 @@ class Task(QFrame):
 
     # update widget values to reflect change in model
     def edit_fields(self, edit_dict):
-        if "label" in edit_dict:
-            self.title.set_state(edit_dict["label"])
-        if "completed" in edit_dict:
-            self.done_button.setText("✔" if edit_dict["completed"] else "")
-            self.done_button.setStyleSheet(self.button_styles[1 if edit_dict["completed"] else 0])
         # if "due" in edit_dict:
         #     self.due_edit.set_state(None if edit_dict["due"] is None else str(edit_dict["due"]))
         # if "value" in edit_dict:
         #     self.value_edit.set_state(edit_dict["value"], label=False)
         #     self.value_edit.set_state(str(edit_dict["value"]), edit=False)
-        if "remind" in edit_dict:
-            self.remind_edit.set_state(None if edit_dict["remind"] is None else str(edit_dict["remind"]))
+        field_indices = self.field_box.index_map()
+        field_types = self.view.custom_fields.defined_fields
+
+        for k, v in edit_dict:
+            if k == "label":
+                self.title.set_state(v)
+            elif k == "completed":
+                self.done_button.setText("✔" if v else "")
+                self.done_button.setStyleSheet(self.button_styles[1 if v else 0])
+            elif k == "remind":
+                self.remind_edit.set_state(None if v is None else str(v))
+            elif k in field_indices:
+                # set value based on edit type
+                w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
+                if field_types[k] == "spin":
+                    w.set_state(v, label=False)
+                    w.set_state(str(v), edit=False)
+                elif field_types[k] == "text":
+                    w.set_state(v)
+                elif field_types[k] == "check":
+                    w.set_state(v)
+                elif field_types[k] == "date":
+                    w.set_state(None if v is None else str(v))
+            elif k in field_types.keys():
+                # create new field for k
+                self.field_box.add_field(k, init_value=v)
 
         # update summary of data in this task for hover
         self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n"
@@ -406,6 +428,102 @@ class Task(QFrame):
             if not added:
                 self.view.controller.insert_shelf_id_in_task(shelf_id, self, self.container_layout.count()+1)
             e.accept()
+
+    class TaskFieldGroup(QGroupBox):
+
+        def __init__(self, view):
+            super(QGroupBox, self).__init__()
+            self.view = view
+
+            self.new_field = QComboBox()
+            self.new_field.addItems(self.view.custom_fields.defined_fields.keys())
+            new_field_button = QPushButton("+")
+            new_field_button.setFixedSize(45, 24)
+
+            create_row = QHBoxLayout()
+            create_row.addWidget(self.new_field)
+            create_row.addWidget(new_field_button)
+
+            self.field_container = QVBoxLayout()
+            self.field_container.setAlignment(Qt.AlignTop)
+
+            v_layout = QVBoxLayout()
+            v_layout.setAlignment(Qt.AlignTop)
+            v_layout.addLayout(create_row)
+            v_layout.addLayout(self.field_container)
+
+            self.setLayout(v_layout)
+
+            self.new_field.installEventFilter(self.view)
+            new_field_button.installEventFilter(self.view)
+            self.installEventFilter(self.view)
+
+            new_field_button.clicked.connect(lambda: self.add_field(self.new_field.currentText()))
+
+        def add_field(self, label, init_value=None):
+            edit_type = self.view.custom_fields.defined_fields[label]
+            self.field_container.addWidget(Task.TaskFieldGroup.TaskFieldRow(self.view, self, label, edit_type,
+                                                                            init_value=init_value))
+            self.new_field.removeItem(label)
+
+        def delete_field(self, label, widget=None):
+            if widget is not None:
+                widget.setParent(None)
+                widget.clear_value()
+            else:
+                for i in range(self.field_container.count()):
+                    w = self.field_container.itemAt(i).widget()
+                    if w.label.text() == label:
+                        w.setParent(None)
+                        w.clear_value()
+            self.new_field.addItem(label)
+
+        # return map of field labels to their index in the layout
+        def index_map(self):
+            ixmap = {}
+            for i in range(self.field_container.count()):
+                w = self.field_container.itemAt(i).widget()
+                ixmap[w.label.text()] = i
+            return ixmap
+
+        class TaskFieldRow(QWidget):
+
+            def __init__(self, view, field_group, label_text, edit_type, init_value=None):
+                super(QWidget, self).__init__()
+                self.view = view
+                self.field_group = field_group
+                self.label = QLabel(label_text)
+                self.value = None
+                if edit_type == "spin":
+                    self.value = EditableSpin(init_value if init_value is not None else 0, 30)
+                elif edit_type == "text":
+                    self.value = EditableText(init_value if init_value is not None else "", 30)
+                elif edit_type == "check":
+                    self.value = EditableCheck(init_value if init_value is not None else False, 30)
+                elif edit_type == "date":
+                    self.value = EditableDate(init_value, 30)
+
+                cancel_button = QPushButton("x")
+                cancel_button.setFixedSize(15, 15)
+                cancel_button.setFlat(True)
+
+                h_layout = QHBoxLayout()
+                h_layout.addWidget(self.label)
+                h_layout.addWidget(self.value)
+                h_layout.addWidget(cancel_button)
+                self.setLayout(h_layout)
+
+                self.value.installEventFilter(self.view)
+                cancel_button.installEventFilter(self.view)
+                self.installEventFilter(self.view)
+
+                self.value.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, label_text))
+                self.value.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, (label_text,
+                                                                                                           x)))
+                cancel_button.clicked.connect(lambda: self.field_group.delete_field(label_text, widget=self))
+
+            def clear_value(self):
+                pass
 
 
 class Shelf(QFrame):
@@ -868,6 +986,9 @@ class FieldControl(QGroupBox):
         super(QGroupBox, self).__init__()
         self.view = view
 
+        # dict of all available custom fields with type as value
+        self.defined_fields = {}
+
         new_field_name = QLineEdit()
         new_field_type = QComboBox()
         new_field_type.addItem("spin")
@@ -902,16 +1023,19 @@ class FieldControl(QGroupBox):
 
     def add_field(self, label, edit_type):
         self.field_container.addWidget(FieldControl.FieldDeclaration(self.view, label, edit_type))
+        self.defined_fields[label] = edit_type
 
     def delete_field(self, label):
         for i in range(self.field_container.count()):
             if self.field_container.itemAt(i).widget().label.label.text() == label:
                 self.field_container.itemAt(i).widget().setParent(None)
+        self.defined_fields[label].pop()
 
     def rename_field(self, old_label, new_label):
         for i in range(self.field_container.count()):
             if self.field_container.itemAt(i).widget().label.label.text() == old_label:
                 self.field_container.itemAt(i).widget().label.set_state(new_label)
+        self.defined_fields[new_label] = self.defined_fields[old_label].pop()
 
     class FieldDeclaration(QWidget):
 
