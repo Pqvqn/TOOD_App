@@ -352,11 +352,12 @@ class Controller(QObject):
 
     @pyqtSlot(str, str)
     def field_added_to_task(self, field_label, task_id):
-        pass
+        init_value = self.view.custom_fields.editable_types[self.view.custom_fields.defined_fields[field_label]]
+        self.model.edit_task(task_id, {field_label: init_value})
 
     @pyqtSlot(str, str)
     def field_removed_from_task(self, field_label, task_id):
-        pass
+        self.model.edit_task(task_id, {field_label: None})
 
     # slots from model triggers
     @pyqtSlot(str, str)

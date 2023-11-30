@@ -247,11 +247,6 @@ class Task(QFrame):
 
     # update widget values to reflect change in model
     def edit_fields(self, edit_dict):
-        # if "due" in edit_dict:
-        #     self.due_edit.set_state(None if edit_dict["due"] is None else str(edit_dict["due"]))
-        # if "value" in edit_dict:
-        #     self.value_edit.set_state(edit_dict["value"], label=False)
-        #     self.value_edit.set_state(str(edit_dict["value"]), edit=False)
         field_indices = self.field_box.index_map()
         field_types = self.view.custom_fields.defined_fields
 
@@ -264,10 +259,14 @@ class Task(QFrame):
             elif k == "remind":
                 self.remind_edit.set_value(v)
             elif k in field_indices:
-                # set value based on edit type
-                w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
-                w.set_value(v)
-            elif k in field_types.keys():
+                if v is None:
+                    # remove existing field edit widget
+                    self.field_box.remove_field(k)
+                else:
+                    # set value based on edit type
+                    w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
+                    w.set_value(v)
+            elif k in field_types.keys() and v is not None:
                 # create new field for k
                 self.field_box.add_field(k, init_value=v)
 
@@ -278,9 +277,9 @@ class Task(QFrame):
     # close all open edit widgets
     def close_fields(self):
         self.title.set_mode(False)
-        # self.due_edit.set_mode(False)
-        # self.value_edit.set_mode(False)
         self.remind_edit.set_mode(False)
+        for i in range(self.field_box.field_container.count()):
+            self.field_box.field_container.itemAt(i).widget().value.set_mode(False)
 
     def set_owner(self, o):
         self.owner = o
@@ -451,9 +450,8 @@ class Task(QFrame):
             new_field_button.installEventFilter(self.view)
             self.installEventFilter(self.view)
 
-            new_field_button.clicked.connect(lambda: self.view.controller.field_added_to_task(self.new_field
-                                                                                              .currentText(),
-                                                                                              self.task.df_id))
+            new_field_button.clicked.connect(lambda: self.view.controller.
+                                             field_added_to_task(self.new_field.currentText(), self.task.df_id))
 
         def add_field(self, label, init_value=None):
             edit_type = self.view.custom_fields.defined_fields[label]
@@ -461,16 +459,11 @@ class Task(QFrame):
                                                                             init_value=init_value))
             self.new_field.removeItem(label)
 
-        def remove_field(self, label, widget=None):
-            if widget is not None:
-                widget.setParent(None)
-                widget.clear_value()
-            else:
-                for i in range(self.field_container.count()):
-                    w = self.field_container.itemAt(i).widget()
-                    if w.label.text() == label:
-                        w.setParent(None)
-                        w.clear_value()
+        def remove_field(self, label):
+            for i in range(self.field_container.count()):
+                w = self.field_container.itemAt(i).widget()
+                if w.label.text() == label:
+                    w.setParent(None)
             self.new_field.addItem(label)
 
         # return map of field labels to their index in the layout
@@ -1116,8 +1109,8 @@ class Editable(QStackedWidget):
 
     # sets both widgets to a default value for this datatype
     def set_to_default(self):
-        self.set_edit_value(self.default_value(self))
-        self.set_label_value(self.default_value(self))
+        self.set_edit_value(self.default_value())
+        self.set_label_value(self.default_value())
 
     # sets value for edit and label at same time
     def set_value(self, val):
@@ -1125,7 +1118,8 @@ class Editable(QStackedWidget):
         self.set_label_value(val)
 
     # default value for this editable type
-    def default_value(self):
+    @staticmethod
+    def default_value():
         return ""
 
     # directly changes edit widget
@@ -1163,7 +1157,8 @@ class EditableText(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def default_value(self):
+    @staticmethod
+    def default_value():
         return ""
 
     def set_edit_value(self, val):
@@ -1200,7 +1195,8 @@ class EditableCheck(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def default_value(self):
+    @staticmethod
+    def default_value():
         return False
 
     def set_edit_value(self, val):
@@ -1234,7 +1230,8 @@ class EditableSpin(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def default_value(self):
+    @staticmethod
+    def default_value():
         return 0.0
 
     def set_edit_value(self, val):
@@ -1272,7 +1269,8 @@ class EditableDate(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def default_value(self):
+    @staticmethod
+    def default_value():
         # by default, dates are assumed to be the upcoming midnight
         dt = QDateTime.currentDateTime().addDays(1)
         dt.setTime(QTime())
