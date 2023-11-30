@@ -545,6 +545,10 @@ class Model(QObject):
             plain_list = series.keys()
         return plain_list
 
+    # return list of tasks that have a non-none value for the field
+    def get_tasks_by_field(self, field):
+        return self.taskdf.loc[self.taskdf[field].notnull()].index
+
     def write_to_file(self, file):
         # write header
         file.write(bytes("<?xml version='1.0' encoding='utf-8'?>\n", 'utf-8'))

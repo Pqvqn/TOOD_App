@@ -89,6 +89,16 @@ class Controller(QObject):
                 instances.append(p_i.get_child(p[1]-1))
         return instances
 
+    # returns all widget instances in the nesting tree of the given shelf or task that have a value for the field
+    def find_instances_by_field(self, field):
+        # get task ids that have the field
+        tasks_with_field = self.model.get_tasks_by_field(field)
+        instances = []
+        # find widget instances of each task
+        for t in tasks_with_field:
+            instances.extend(self.find_instances(t, True))
+        return instances
+
     # slots from view triggers
     @pyqtSlot()
     def debug_print(self):
@@ -433,7 +443,13 @@ class Controller(QObject):
     @pyqtSlot(str)
     def delete_field(self, label):
         self.view.custom_fields.delete_field(label)
+        task_instances = self.find_instances_by_field(label)
+        for task in task_instances:
+            task.field_box.remove_field(label)
 
     @pyqtSlot(str, str)
     def rename_field(self, old_label, new_label):
         self.view.custom_fields.rename_field(old_label, new_label)
+        task_instances = self.find_instances_by_field(new_label)
+        for task in task_instances:
+            task.field_box.rename_field(old_label, new_label)

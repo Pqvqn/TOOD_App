@@ -453,18 +453,27 @@ class Task(QFrame):
             new_field_button.clicked.connect(lambda: self.view.controller.
                                              field_added_to_task(self.new_field.currentText(), self.task.df_id))
 
+        # add field edit widget to this task
         def add_field(self, label, init_value=None):
             edit_type = self.view.custom_fields.defined_fields[label]
             self.field_container.addWidget(Task.TaskFieldGroup.TaskFieldRow(self.view, self, label, edit_type,
                                                                             init_value=init_value))
             self.new_field.removeItem(label)
 
+        # remove field edit widget from this task
         def remove_field(self, label):
             for i in range(self.field_container.count()):
                 w = self.field_container.itemAt(i).widget()
                 if w.label.text() == label:
                     w.setParent(None)
             self.new_field.addItem(label)
+
+        # change name of field in combo box and edit widgets
+        def rename_field(self, old_label, new_label):
+            for i in range(self.field_container.count()):
+                w = self.field_container.itemAt(i).widget()
+                if w.label.text() == old_label:
+                    w.label.setText(new_label)
 
         # return map of field labels to their index in the layout
         def index_map(self):
