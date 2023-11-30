@@ -122,7 +122,7 @@ class Task(QFrame):
                               "border-radius : 10; background-color : green; color : white")
 
         # create UI
-        self.title = EditableText("", 15)
+        self.title = EditableText()
         self.done_button = QPushButton()
         self.done_button.setFixedSize(20, 20)
         cancel_button = QPushButton("x")
@@ -133,9 +133,9 @@ class Task(QFrame):
         # self.value_label = QLabel("Value:")
         # self.value_edit = EditableSpin(0, 15)
         self.remind_label = QLabel("Remind @ ")
-        self.remind_edit = EditableDate(None, 15)
+        self.remind_edit = EditableDate()
 
-        self.field_box = Task.TaskFieldGroup(self.view)
+        self.field_box = Task.TaskFieldGroup(self.view, self)
 
         new_shelf_button = QPushButton("+")
         new_shelf_button.setFixedSize(40, 20)
@@ -257,31 +257,23 @@ class Task(QFrame):
 
         for k, v in edit_dict:
             if k == "label":
-                self.title.set_state(v)
+                self.title.set_value(v)
             elif k == "completed":
                 self.done_button.setText("✔" if v else "")
                 self.done_button.setStyleSheet(self.button_styles[1 if v else 0])
             elif k == "remind":
-                self.remind_edit.set_state(None if v is None else str(v))
+                self.remind_edit.set_value(v)
             elif k in field_indices:
                 # set value based on edit type
                 w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
-                if field_types[k] == "spin":
-                    w.set_state(v, label=False)
-                    w.set_state(str(v), edit=False)
-                elif field_types[k] == "text":
-                    w.set_state(v)
-                elif field_types[k] == "check":
-                    w.set_state(v)
-                elif field_types[k] == "date":
-                    w.set_state(None if v is None else str(v))
+                w.set_value(v)
             elif k in field_types.keys():
                 # create new field for k
                 self.field_box.add_field(k, init_value=v)
 
         # update summary of data in this task for hover
-        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.label.text()}</b> {self.done_button.text()}\n"
-                        f"Reminder set for {self.remind_edit.label.text()}</p>")
+        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.value()}</b> {self.done_button.text()}\n"
+                        f"Reminder set for {self.remind_edit.value()}</p>")
 
     # close all open edit widgets
     def close_fields(self):
@@ -431,9 +423,10 @@ class Task(QFrame):
 
     class TaskFieldGroup(QGroupBox):
 
-        def __init__(self, view):
+        def __init__(self, view, task):
             super(QGroupBox, self).__init__()
             self.view = view
+            self.task = task
 
             self.new_field = QComboBox()
             self.new_field.addItems(self.view.custom_fields.defined_fields.keys())
@@ -458,7 +451,9 @@ class Task(QFrame):
             new_field_button.installEventFilter(self.view)
             self.installEventFilter(self.view)
 
-            new_field_button.clicked.connect(lambda: self.add_field(self.new_field.currentText()))
+            new_field_button.clicked.connect(lambda: self.view.controller.field_added_to_task(self.new_field
+                                                                                              .currentText(),
+                                                                                              self.task.df_id))
 
         def add_field(self, label, init_value=None):
             edit_type = self.view.custom_fields.defined_fields[label]
@@ -466,7 +461,7 @@ class Task(QFrame):
                                                                             init_value=init_value))
             self.new_field.removeItem(label)
 
-        def delete_field(self, label, widget=None):
+        def remove_field(self, label, widget=None):
             if widget is not None:
                 widget.setParent(None)
                 widget.clear_value()
@@ -493,15 +488,7 @@ class Task(QFrame):
                 self.view = view
                 self.field_group = field_group
                 self.label = QLabel(label_text)
-                self.value = None
-                if edit_type == "spin":
-                    self.value = EditableSpin(init_value if init_value is not None else 0, 30)
-                elif edit_type == "text":
-                    self.value = EditableText(init_value if init_value is not None else "", 30)
-                elif edit_type == "check":
-                    self.value = EditableCheck(init_value if init_value is not None else False, 30)
-                elif edit_type == "date":
-                    self.value = EditableDate(init_value, 30)
+                self.value = self.view.custom_fields.editable_types[edit_type]()
 
                 cancel_button = QPushButton("x")
                 cancel_button.setFixedSize(15, 15)
@@ -520,10 +507,8 @@ class Task(QFrame):
                 self.value.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, label_text))
                 self.value.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, (label_text,
                                                                                                            x)))
-                cancel_button.clicked.connect(lambda: self.field_group.delete_field(label_text, widget=self))
-
-            def clear_value(self):
-                pass
+                cancel_button.clicked.connect(lambda: self.view.controller.field_removed_from_task(label_text,
+                                                                                                   self.task.df_id))
 
 
 class Shelf(QFrame):
@@ -543,16 +528,16 @@ class Shelf(QFrame):
         self.dragStartPosition = None
 
         # create UI
-        self.title = EditableText("", 15)
+        self.title = EditableText()
         cancel_button = QPushButton("x")
         cancel_button.setFixedSize(15, 15)
         cancel_button.setFlat(True)
         self.filter_label = QLabel("Filter:")
-        self.filter_check = EditableCheck(False, 15)
+        self.filter_check = EditableCheck()
         self.filter_text = EditableText("", 15)
         self.sorter_label = QLabel("Sorter:")
-        self.sorter_check = EditableCheck(False, 15)
-        self.sorter_text = EditableText("", 15)
+        self.sorter_check = EditableCheck()
+        self.sorter_text = EditableText()
 
         new_task_button = QPushButton("+")
         new_task_button.setFixedSize(40, 20)
@@ -697,15 +682,15 @@ class Shelf(QFrame):
     # update widget values to reflect change in model
     def edit_fields(self, edit_dict):
         if "title" in edit_dict:
-            self.title.set_state(edit_dict["title"])
+            self.title.set_value(edit_dict["title"])
         if "is_filter" in edit_dict:
-            self.filter_check.set_state(edit_dict["is_filter"])
+            self.filter_check.set_value(edit_dict["is_filter"])
         if "filter_string" in edit_dict:
-            self.filter_text.set_state(edit_dict["filter_string"])
+            self.filter_text.set_value(edit_dict["filter_string"])
         if "is_sorter" in edit_dict:
-            self.sorter_check.set_state(edit_dict["is_sorter"])
+            self.sorter_check.set_value(edit_dict["is_sorter"])
         if "sorter_string" in edit_dict:
-            self.sorter_text.set_state(edit_dict["sorter_string"])
+            self.sorter_text.set_value(edit_dict["sorter_string"])
 
     # close all open edit widgets
     def close_fields(self):
@@ -986,15 +971,20 @@ class FieldControl(QGroupBox):
         super(QGroupBox, self).__init__()
         self.view = view
 
+        # dict of editable datatype widgets with keys as the string associated with them
+        self.editable_types = {
+            "spin": EditableSpin,
+            "text": EditableText,
+            "check": EditableCheck,
+            "date": EditableDate
+        }
+
         # dict of all available custom fields with type as value
         self.defined_fields = {}
 
         new_field_name = QLineEdit()
         new_field_type = QComboBox()
-        new_field_type.addItem("spin")
-        new_field_type.addItem("text")
-        new_field_type.addItem("check")
-        new_field_type.addItem("date")
+        new_field_type.addItems(self.editable_types.keys())
         new_field_button = QPushButton("+")
         new_field_button.setFixedSize(45, 24)
 
@@ -1027,14 +1017,14 @@ class FieldControl(QGroupBox):
 
     def delete_field(self, label):
         for i in range(self.field_container.count()):
-            if self.field_container.itemAt(i).widget().label.label.text() == label:
+            if self.field_container.itemAt(i).widget().label.value() == label:
                 self.field_container.itemAt(i).widget().setParent(None)
         self.defined_fields[label].pop()
 
     def rename_field(self, old_label, new_label):
         for i in range(self.field_container.count()):
-            if self.field_container.itemAt(i).widget().label.label.text() == old_label:
-                self.field_container.itemAt(i).widget().label.set_state(new_label)
+            if self.field_container.itemAt(i).widget().label.value() == old_label:
+                self.field_container.itemAt(i).widget().label.set_value(new_label)
         self.defined_fields[new_label] = self.defined_fields[old_label].pop()
 
     class FieldDeclaration(QWidget):
@@ -1043,7 +1033,7 @@ class FieldControl(QGroupBox):
             super(QWidget, self).__init__()
             self.view = view
 
-            self.label = EditableText(label_text, 30, autoescape=True)
+            self.label = EditableText(data=label_text, height=30, autoescape=True)
             type_text = QLabel(edit_type)
             cancel_button = QPushButton("x")
             cancel_button.setFixedSize(15, 15)
@@ -1060,9 +1050,9 @@ class FieldControl(QGroupBox):
             cancel_button.installEventFilter(self.view)
             self.installEventFilter(self.view)
 
-            cancel_button.clicked.connect(lambda: self.view.controller.field_deleted(self.label.label.text()))
-            self.label.focus_ended.connect(lambda: self.view.controller.field_renamed(self.label.label.text(),
-                                                                                      self.label.edit.text()))
+            cancel_button.clicked.connect(lambda: self.view.controller.field_deleted(self.label.value()))
+            self.label.focus_ended.connect(lambda: self.view.controller.field_renamed(self.label.value(),
+                                                                                      self.label.edit_value()))
 
 
 class Editable(QStackedWidget):
@@ -1072,15 +1062,21 @@ class Editable(QStackedWidget):
     edit_updated = pyqtSignal()
     focus_ended = pyqtSignal()
 
-    def __init__(self, data, height, autoescape=False, autoset=False, *args, **kwargs):
+    def __init__(self, data=None, height=15, autoescape=False, autoset=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.autoescape = autoescape
         self.autoset = autoset
         self.fixed_height = height
-        self.label = QLabel("")
+        self.label = QLabel()
         self.edit = self.make_edit()
-        self.set_state(data)
+
+        if data is None:
+            self.set_to_default()
+        else:
+            self.set_label_value(data)
+            self.set_edit_value(data)
+
         self.addWidget(self.label)
         self.addWidget(self.edit)
         self.setFixedHeight(height)
@@ -1104,12 +1100,6 @@ class Editable(QStackedWidget):
     def focus(self):
         self.edit.setFocus()
 
-    # set state of label and edit widgets
-    def set_state(self, state, edit=True, label=True):
-        if edit:
-            self.edit.setText(state)
-        if label:
-            self.label.setText(state)
 
     # switch in or out of edit mode
     def set_mode(self, toEdit):
@@ -1124,11 +1114,41 @@ class Editable(QStackedWidget):
             if self.autoset:
                 self.set_state(self.edit.text(), edit=False)
 
+    # sets both widgets to a default value for this datatype
+    def set_to_default(self):
+        self.set_edit_value(self.default_value(self))
+        self.set_label_value(self.default_value(self))
+
+    # sets value for edit and label at same time
+    def set_value(self, val):
+        self.set_edit_value(val)
+        self.set_label_value(val)
+
+    # default value for this editable type
+    def default_value(self):
+        return ""
+
+    # directly changes edit widget
+    def set_edit_value(self, val):
+        self.edit.setText(val)
+
+    # directly changes label widget
+    def set_label_value(self, val):
+        self.label.setText(val)
+
+    # returns the value shown by label
+    def value(self):
+        return self.label.text()
+
+    # return the value stored in edit
+    def edit_value(self):
+        return self.edit.text()
+
 class EditableText(Editable):
     edit_updated = pyqtSignal(str)
 
-    def __init__(self, text, height, *args, **kwargs):
-        super().__init__(text, height, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.edit.textEdited.connect(lambda x: self.edit_updated.emit(x))
         if self.autoescape:
@@ -1143,23 +1163,32 @@ class EditableText(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def set_state(self, state, edit=True, label=True):
-        if edit:
-            self.edit.setText(state)
-            if self.autoescape:
-                self.edit.selectAll()
-                self.edit.setFocus()
-        if label:
-            self.label.setText(state)
+    def default_value(self):
+        return ""
 
+    def set_edit_value(self, val):
+        self.edit.setText(val)
+        if self.autoescape:
+            self.edit.selectAll()
+            self.edit.setFocus()
+
+    def set_label_value(self, val):
+        self.label.setText(val)
+
+    def value(self):
+        return self.label.text()
+
+    def edit_value(self):
+        return self.edit.text()
 
 class EditableCheck(Editable):
     edit_updated = pyqtSignal(bool)
 
-    def __init__(self, checked, height, *args, **kwargs):
-        super().__init__(checked, height, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-        self.setFixedWidth(height)
+        self.checked = False
+        #self.setFixedWidth(height)
         self.edit.clicked.connect(lambda x: self.edit_updated.emit(x))
 
     def make_edit(self):
@@ -1171,19 +1200,29 @@ class EditableCheck(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def set_state(self, state, edit=True, label=True):
-        if edit:
-            self.edit.setChecked(state)
-        if label:
-            self.label.setText("☑" if state else "☐")
+    def default_value(self):
+        return False
 
+    def set_edit_value(self, val):
+        self.edit.setChecked(val)
+
+    def set_label_value(self, val):
+        self.label.setText("☑" if val else "☐")
+        self.checked = val
+
+    def value(self):
+        return self.checked
+
+    def edit_value(self):
+        return self.edit.isChecked()
 
 class EditableSpin(Editable):
     edit_updated = pyqtSignal(float)
 
-    def __init__(self, number, height, *args, **kwargs):
-        super().__init__(number, height, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+        self.number = 0.0
         self.edit.valueChanged.connect(lambda x: self.edit_updated.emit(float(x)))
 
     def make_edit(self):
@@ -1195,11 +1234,21 @@ class EditableSpin(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    def set_state(self, state, edit=True, label=True):
-        if edit:
-            self.edit.setValue(state)
-        if label:
-            self.label.setText(str(state))
+    def default_value(self):
+        return 0.0
+
+    def set_edit_value(self, val):
+        self.edit.setValue(val)
+
+    def set_label_value(self, val):
+        self.label.setText(str(val))
+        self.number = val
+
+    def value(self):
+        return self.number
+
+    def edit_value(self):
+        return self.edit.value()
 
 
 class EditableDate(Editable):
@@ -1207,8 +1256,8 @@ class EditableDate(Editable):
     display_format = "M/d/yyyy h:mm AP"
     model_format = "yyyy-MM-dd hh:mm:ss"
 
-    def __init__(self, number, height, *args, **kwargs):
-        super().__init__(number, height, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.edit.setCalendarPopup(True)
         self.edit.setDisplayFormat(EditableDate.display_format)
@@ -1223,20 +1272,23 @@ class EditableDate(Editable):
         def focusOutEvent(self, event):
             self.focus_lost.emit()
 
-    # by default, dates are assumed to be the upcoming midnight
-    def default_time(self):
+    def default_value(self):
+        # by default, dates are assumed to be the upcoming midnight
         dt = QDateTime.currentDateTime().addDays(1)
         dt.setTime(QTime())
-        return dt
+        return dt.toString(EditableDate.display_format)
 
-    def set_state(self, state, edit=True, label=True):
-        if edit:
-            self.edit.setDateTime(self.default_time() if state is None else
-                                  QDateTime.fromString(state, EditableDate.model_format))
-        if label:
-            self.label.setText("--/--/-- --:--" if state is None else
-                    QDateTime.fromString(state, EditableDate.model_format).toString(EditableDate.display_format))
+    def set_edit_value(self, val):
+        self.edit.setDateTime(QDateTime.fromString(val, EditableDate.model_format))
 
+    def set_label_value(self, val):
+        self.label.setText(QDateTime.fromString(val, EditableDate.model_format).toString(EditableDate.display_format))
+
+    def value(self):
+        return self.label.text()
+
+    def edit_value(self):
+        return self.edit.dateTime().toString(EditableDate.model_format)
 
 class CollapseGrid(QWidget):
     # class that can toggle between two widget layouts when an open/close button is clicked

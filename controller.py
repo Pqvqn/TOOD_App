@@ -350,6 +350,14 @@ class Controller(QObject):
         if not success[0]:
             self.view.show_warning(success[1])
 
+    @pyqtSlot(str, str)
+    def field_added_to_task(self, field_label, task_id):
+        pass
+
+    @pyqtSlot(str, str)
+    def field_removed_from_task(self, field_label, task_id):
+        pass
+
     # slots from model triggers
     @pyqtSlot(str, str)
     def change_task_in_stage(self, prev_task, new_task):
