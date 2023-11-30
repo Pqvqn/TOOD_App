@@ -389,6 +389,8 @@ class Model(QObject):
             return False, label + " is already a field"
         if label in self.taskattributes.keys():
             return False, label + " is an internal task attribute"
+        if not label.isidentifier():
+            return False, label + " is not a valid identifier"
 
         self.taskfields[label] = f_type
         self.taskdf[label] = None
@@ -560,8 +562,8 @@ class Model(QObject):
         # write taskfields
         if len(self.taskfields) > 0:
             file.write(bytes("<fields>\n", 'utf-8'))
-            for (k, v) in self.taskfields:
-                file.write(bytes("  <field>" + k + "=" + v + "</field>\n", 'utf-8'))
+            for (k, v) in self.taskfields.items():
+                file.write(bytes("  <field>" + k + "=" + str(v) + "</field>\n", 'utf-8'))
             file.write(bytes("</fields>\n", 'utf-8'))
         else:
             file.write(bytes("<fields/>\n", 'utf-8'))

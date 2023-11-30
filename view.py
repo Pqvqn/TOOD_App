@@ -247,6 +247,10 @@ class Task(QFrame):
 
     # update widget values to reflect change in model
     def edit_fields(self, edit_dict):
+        # check if a value is None or NaN to indicate that the task does not have the field
+        def is_absent(value):
+            return value is None or (isinstance(value, float) and math.isnan(value))
+
         field_indices = self.field_box.index_map()
         field_types = self.view.custom_fields.defined_fields
 
@@ -257,20 +261,31 @@ class Task(QFrame):
                 self.done_button.setText("✔" if v else "")
                 self.done_button.setStyleSheet(self.button_styles[1 if v else 0])
             elif k in field_indices:
-                if v is None or math.isnan(v):
+                if is_absent(v):
                     # remove existing field edit widget
                     self.field_box.remove_field(k)
                 else:
                     # set value based on edit type
                     w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
                     w.set_value(v)
-            elif k in field_types.keys() and v is not None and not math.isnan(v):
-                print(v)
+            #
+            elif k in field_types.keys() and not is_absent(v):
                 # create new field for k
                 self.field_box.add_field(k, init_value=v)
 
+
         # update summary of data in this task for hover
         self.setToolTip(f"<p style='white-space:pre'><b>{self.title.value()}</b> {self.done_button.text()}\n</p>")
+
+    # set whether a specific field is in edit mode or label mode
+    def set_field_edit_mode(self, field_name, to_edit):
+        field_indices = self.field_box.index_map()
+
+        if field_name == "label":
+            self.title.set_mode(to_edit)
+        elif field_name in field_indices:
+            w = self.field_box.field_container.itemAt(field_indices[field_name]).widget().value
+            w.set_mode(to_edit)
 
     # close all open edit widgets
     def close_fields(self):
@@ -464,7 +479,9 @@ class Task(QFrame):
             self.create_row.addWidget(self.new_field)
 
         def select(self, field_idx):
-            if field_idx > 0:
+            # only add field if the cancel option isnt selected
+            # test if string is empty to prevent double-firing of activate
+            if field_idx > 0 and self.new_field.itemText(field_idx) != "":
                 self.view.controller.field_added_to_task(self.new_field.itemText(field_idx), self.task.df_id)
             self.new_field.hide()
             self.new_field.clear()
@@ -505,7 +522,7 @@ class Task(QFrame):
                 self.view = view
                 self.field_group = field_group
                 self.label = QLabel(label_text)
-                self.value = self.view.custom_fields.editable_types[edit_type]()
+                self.value = self.view.custom_fields.editable_types[edit_type](data=init_value)
 
                 cancel_button = QPushButton("x")
                 cancel_button.setFixedSize(15, 15)
@@ -521,9 +538,10 @@ class Task(QFrame):
                 cancel_button.installEventFilter(self.view)
                 self.installEventFilter(self.view)
 
-                self.value.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, label_text))
+                self.value.edit_began.connect(lambda: self.view.controller.
+                                              widget_field_entered(self.field_group.task, label_text))
                 self.value.edit_updated.connect(lambda x: self.view.controller.
-                                                widget_field_changed(self, (label_text, x)))
+                                                widget_field_changed(self.field_group.task, (label_text, x)))
                 cancel_button.clicked.connect(lambda: self.view.controller.
                                               field_removed_from_task(label_text, self.field_group.task.df_id))
 
@@ -1301,10 +1319,10 @@ class EditableDate(Editable):
         return dt.toString(EditableDate.display_format)
 
     def set_edit_value(self, val):
-        self.edit.setDateTime(QDateTime.fromString(val, EditableDate.model_format))
+        self.edit.setDateTime(QDateTime.fromString(str(val), EditableDate.model_format))
 
     def set_label_value(self, val):
-        self.label.setText(QDateTime.fromString(val, EditableDate.model_format).toString(EditableDate.display_format))
+        self.label.setText(QDateTime.fromString(str(val), EditableDate.model_format).toString(EditableDate.display_format))
 
     def value(self):
         return self.label.text()

@@ -174,11 +174,11 @@ class Controller(QObject):
             widget.set_edit_look(True)
             for inst in self.edit_instances:
                 inst.set_edit_look(True)
-                getattr(inst, field_name).set_mode(True)
+                inst.set_field_edit_mode(field_name, True)
 
         elif self.widget_being_edited == widget:
             for inst in self.edit_instances:
-                getattr(inst, field_name).set_mode(True)
+                inst.set_field_edit_mode(field_name, True)
 
     @pyqtSlot(QWidget, tuple)
     def widget_field_changed(self, widget, change):
@@ -362,8 +362,8 @@ class Controller(QObject):
 
     @pyqtSlot(str, str)
     def field_added_to_task(self, field_label, task_id):
-        init_value = self.view.custom_fields.editable_types[self.view.custom_fields.defined_fields[field_label]]
-        self.model.edit_task(task_id, **{field_label: init_value})
+        edit_widget_class = self.view.custom_fields.editable_types[self.view.custom_fields.defined_fields[field_label]]
+        self.model.edit_task(task_id, **{field_label: edit_widget_class.default_value()})
 
     @pyqtSlot(str, str)
     def field_removed_from_task(self, field_label, task_id):
