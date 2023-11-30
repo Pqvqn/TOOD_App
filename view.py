@@ -3,7 +3,7 @@ from PyQt5.QtGui import QDrag, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QScrollArea, QHBoxLayout, QWidget, QFrame, \
     QVBoxLayout, QStackedWidget, QLabel, QLineEdit, QCheckBox, QGroupBox, QGridLayout, QMessageBox, \
     QDoubleSpinBox, QDateTimeEdit, QFileDialog, QSizePolicy, QApplication, QComboBox
-
+import math
 
 class View(QMainWindow):
     clicked_out_of_edit = pyqtSignal()
@@ -132,8 +132,8 @@ class Task(QFrame):
         # self.due_edit = EditableDate(None, 15)
         # self.value_label = QLabel("Value:")
         # self.value_edit = EditableSpin(0, 15)
-        self.remind_label = QLabel("Remind @ ")
-        self.remind_edit = EditableDate()
+        #self.remind_label = QLabel("Remind @ ")
+        #self.remind_edit = EditableDate()
 
         self.field_box = Task.TaskFieldGroup(self.view, self)
 
@@ -169,8 +169,8 @@ class Task(QFrame):
         # collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
         # collapse_grid.add_child(self.value_label, (2, 1, 1, 1), None)
         # collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
-        collapse_grid.add_child(self.remind_label, (1, 1, 1, 1), None)
-        collapse_grid.add_child(self.remind_edit, (1, 2, 1, 2), None)
+        #collapse_grid.add_child(self.remind_label, (1, 1, 1, 1), None)
+        #collapse_grid.add_child(self.remind_edit, (1, 2, 1, 2), None)
         collapse_grid.add_child(self.field_box, (2, 1, 1, 4), None)
 
         collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
@@ -206,11 +206,11 @@ class Task(QFrame):
         self.title.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "title"))
         # self.due_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "due_edit"))
         # self.value_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "value_edit"))
-        self.remind_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "remind_edit"))
+        #self.remind_edit.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, "remind_edit"))
         self.title.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("label", x)))
         # self.due_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("due", x)))
         # self.value_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("value", x)))
-        self.remind_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("remind", x)))
+        #self.remind_edit.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, ("remind", x)))
 
     # set width to accomodate children and update parent if width changes
     def check_width(self):
@@ -250,34 +250,31 @@ class Task(QFrame):
         field_indices = self.field_box.index_map()
         field_types = self.view.custom_fields.defined_fields
 
-        for k, v in edit_dict:
+        for (k, v) in edit_dict.items():
             if k == "label":
                 self.title.set_value(v)
             elif k == "completed":
                 self.done_button.setText("✔" if v else "")
                 self.done_button.setStyleSheet(self.button_styles[1 if v else 0])
-            elif k == "remind":
-                self.remind_edit.set_value(v)
             elif k in field_indices:
-                if v is None:
+                if v is None or math.isnan(v):
                     # remove existing field edit widget
                     self.field_box.remove_field(k)
                 else:
                     # set value based on edit type
                     w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
                     w.set_value(v)
-            elif k in field_types.keys() and v is not None:
+            elif k in field_types.keys() and v is not None and not math.isnan(v):
+                print(v)
                 # create new field for k
                 self.field_box.add_field(k, init_value=v)
 
         # update summary of data in this task for hover
-        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.value()}</b> {self.done_button.text()}\n"
-                        f"Reminder set for {self.remind_edit.value()}</p>")
+        self.setToolTip(f"<p style='white-space:pre'><b>{self.title.value()}</b> {self.done_button.text()}\n</p>")
 
     # close all open edit widgets
     def close_fields(self):
         self.title.set_mode(False)
-        self.remind_edit.set_mode(False)
         for i in range(self.field_box.field_container.count()):
             self.field_box.field_container.itemAt(i).widget().value.set_mode(False)
 
@@ -427,38 +424,57 @@ class Task(QFrame):
             self.view = view
             self.task = task
 
+            self.new_field_button = QPushButton("+")
+            self.new_field_button.setFixedSize(30, 15)
             self.new_field = QComboBox()
-            self.new_field.addItems(self.view.custom_fields.defined_fields.keys())
-            new_field_button = QPushButton("+")
-            new_field_button.setFixedSize(45, 24)
 
-            create_row = QHBoxLayout()
-            create_row.addWidget(self.new_field)
-            create_row.addWidget(new_field_button)
+            self.create_row = QVBoxLayout()
+            self.create_row.setAlignment(Qt.AlignTop)
+            self.create_row.addWidget(self.new_field)
+            self.create_row.addWidget(self.new_field_button)
+            self.new_field.hide()
 
             self.field_container = QVBoxLayout()
             self.field_container.setAlignment(Qt.AlignTop)
 
             v_layout = QVBoxLayout()
             v_layout.setAlignment(Qt.AlignTop)
-            v_layout.addLayout(create_row)
             v_layout.addLayout(self.field_container)
+            v_layout.addLayout(self.create_row)
 
             self.setLayout(v_layout)
 
-            self.new_field.installEventFilter(self.view)
-            new_field_button.installEventFilter(self.view)
+            self.new_field_button.installEventFilter(self.view)
             self.installEventFilter(self.view)
 
-            new_field_button.clicked.connect(lambda: self.view.controller.
-                                             field_added_to_task(self.new_field.currentText(), self.task.df_id))
+            self.new_field_button.clicked.connect(self.create_selector)
+
+        # adds a combobox that allows the user to select the new field to add
+        def create_selector(self):
+            self.new_field_button.hide()
+            self.new_field.clear()
+            used_fields = self.index_map().keys()
+            items = [f for f in self.view.custom_fields.defined_fields.keys() if f not in used_fields]
+            self.new_field.addItem("[ cancel ]")
+            self.new_field.addItems(items)
+            self.new_field.setCurrentIndex(-1)
+            self.new_field.show()
+            self.new_field.installEventFilter(self.view)
+            self.new_field.activated.connect(self.select)
+            self.create_row.addWidget(self.new_field)
+
+        def select(self, field_idx):
+            if field_idx > 0:
+                self.view.controller.field_added_to_task(self.new_field.itemText(field_idx), self.task.df_id)
+            self.new_field.hide()
+            self.new_field.clear()
+            self.new_field_button.show()
 
         # add field edit widget to this task
         def add_field(self, label, init_value=None):
             edit_type = self.view.custom_fields.defined_fields[label]
             self.field_container.addWidget(Task.TaskFieldGroup.TaskFieldRow(self.view, self, label, edit_type,
                                                                             init_value=init_value))
-            self.new_field.removeItem(label)
 
         # remove field edit widget from this task
         def remove_field(self, label):
@@ -466,7 +482,6 @@ class Task(QFrame):
                 w = self.field_container.itemAt(i).widget()
                 if w.label.text() == label:
                     w.setParent(None)
-            self.new_field.addItem(label)
 
         # change name of field in combo box and edit widgets
         def rename_field(self, old_label, new_label):
@@ -507,10 +522,10 @@ class Task(QFrame):
                 self.installEventFilter(self.view)
 
                 self.value.edit_began.connect(lambda: self.view.controller.widget_field_entered(self, label_text))
-                self.value.edit_updated.connect(lambda x: self.view.controller.widget_field_changed(self, (label_text,
-                                                                                                           x)))
-                cancel_button.clicked.connect(lambda: self.view.controller.field_removed_from_task(label_text,
-                                                                                                   self.task.df_id))
+                self.value.edit_updated.connect(lambda x: self.view.controller.
+                                                widget_field_changed(self, (label_text, x)))
+                cancel_button.clicked.connect(lambda: self.view.controller.
+                                              field_removed_from_task(label_text, self.field_group.task.df_id))
 
 
 class Shelf(QFrame):

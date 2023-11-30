@@ -41,8 +41,7 @@ class Model(QObject):
         # column labels and required types for task dataframe
         self.taskattributes = {"label": str,
                             "seen": int,
-                            "completed": bool,
-                            "remind": pd.Timestamp}
+                            "completed": bool}
         # column labels for custom task fields in task dataframe
         self.taskfields = {}
         # shelf labels and required types for task dataframe
@@ -114,7 +113,6 @@ class Model(QObject):
         label_idx = generate_next_label(list(self.taskdf.index.values), prefix="t")
         self.taskdf.loc[label_idx] = {"label": "///",
                                       "seen": 0,
-                                      "due": None,
                                       "completed": False}
         # add task to nesting matrix
         self.nestmat[label_idx] = 0
