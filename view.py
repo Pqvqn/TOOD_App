@@ -163,7 +163,7 @@ class Task(QFrame):
         expanded = info["label"] == "///"
         collapse_grid = CollapseGrid(expanded)
         collapse_grid.add_child(self.title, (0, 1, 1, 4), (0, 1, 1, 2), align=Qt.AlignLeft)
-        collapse_grid.add_child(self.done_button, (1, 4, 1, 2), (0, 3, 1, 2))
+        collapse_grid.add_child(self.done_button, (0, 4, 1, 2), (0, 3, 1, 2))
         collapse_grid.add_child(cancel_button, (0, 5, 1, 1), (0, 5, 1, 1))
         # collapse_grid.add_child(self.due_label, (1, 1, 1, 1), None)
         # collapse_grid.add_child(self.due_edit, (1, 2, 1, 2), None)
@@ -171,10 +171,10 @@ class Task(QFrame):
         # collapse_grid.add_child(self.value_edit, (2, 2, 1, 2), None)
         #collapse_grid.add_child(self.remind_label, (1, 1, 1, 1), None)
         #collapse_grid.add_child(self.remind_edit, (1, 2, 1, 2), None)
-        collapse_grid.add_child(self.field_box, (2, 1, 1, 4), None)
+        collapse_grid.add_child(self.field_box, (1, 0, 1, 6), None)
 
-        collapse_grid.add_child(self.collapse_tree, (3, 0, 2, 6), (1, 0, 1, 6))
-        collapse_grid.add_child(id_label, (5, 0, 1, 3), None, align=Qt.AlignBottom)
+        collapse_grid.add_child(self.collapse_tree, (2, 0, 2, 6), (1, 0, 1, 6))
+        collapse_grid.add_child(id_label, (4, 0, 1, 3), None, align=Qt.AlignBottom)
 
         v_layout = QVBoxLayout()
         v_layout.addWidget(collapse_grid)
@@ -268,7 +268,6 @@ class Task(QFrame):
                     # set value based on edit type
                     w = self.field_box.field_container.itemAt(field_indices[k]).widget().value
                     w.set_value(v)
-            #
             elif k in field_types.keys() and not is_absent(v):
                 # create new field for k
                 self.field_box.add_field(k, init_value=v)
@@ -446,11 +445,14 @@ class Task(QFrame):
             self.create_row = QVBoxLayout()
             self.create_row.setAlignment(Qt.AlignTop)
             self.create_row.addWidget(self.new_field)
-            self.create_row.addWidget(self.new_field_button)
+            self.create_row.addWidget(self.new_field_button, alignment=Qt.AlignCenter)
             self.new_field.hide()
 
             self.field_container = QVBoxLayout()
             self.field_container.setAlignment(Qt.AlignTop)
+
+            self.field_container.setContentsMargins(0, 0, 0, 0)
+            self.field_container.setSpacing(0)
 
             v_layout = QVBoxLayout()
             v_layout.setAlignment(Qt.AlignTop)
@@ -499,6 +501,7 @@ class Task(QFrame):
                 w = self.field_container.itemAt(i).widget()
                 if w.label.text() == label:
                     w.setParent(None)
+                    break
 
         # change name of field in combo box and edit widgets
         def rename_field(self, old_label, new_label):
@@ -531,8 +534,11 @@ class Task(QFrame):
                 h_layout = QHBoxLayout()
                 h_layout.addWidget(self.label)
                 h_layout.addWidget(self.value)
+                h_layout.addStretch()
                 h_layout.addWidget(cancel_button)
                 self.setLayout(h_layout)
+
+                h_layout.setContentsMargins(0, 0, 0, 0)
 
                 self.value.installEventFilter(self.view)
                 cancel_button.installEventFilter(self.view)
@@ -1018,14 +1024,14 @@ class FieldControl(QGroupBox):
         self.defined_fields = {}
 
         new_field_name = QLineEdit()
-        new_field_type = QComboBox()
-        new_field_type.addItems(self.editable_types.keys())
+        self.new_field_type = QComboBox()
+        self.new_field_type.addItems(self.editable_types.keys())
         new_field_button = QPushButton("+")
         new_field_button.setFixedSize(45, 24)
 
         create_row = QHBoxLayout()
         create_row.addWidget(new_field_name)
-        create_row.addWidget(new_field_type)
+        create_row.addWidget(self.new_field_type)
         create_row.addWidget(new_field_button)
 
         self.field_container = QVBoxLayout()
@@ -1039,28 +1045,36 @@ class FieldControl(QGroupBox):
         self.setLayout(v_layout)
 
         new_field_name.installEventFilter(self.view)
-        new_field_type.installEventFilter(self.view)
+        self.new_field_type.installEventFilter(self.view)
         new_field_button.installEventFilter(self.view)
         self.installEventFilter(self.view)
 
         new_field_button.clicked.connect(lambda: self.view.controller.field_added(new_field_name.text(),
-                                                                                  new_field_type.currentText()))
+                                                                                  self.new_field_type.currentText()))
+        new_field_button.clicked.connect(lambda: new_field_name.clear())
 
-    def add_field(self, label, edit_type):
-        self.field_container.addWidget(FieldControl.FieldDeclaration(self.view, label, edit_type))
-        self.defined_fields[label] = edit_type
+    def add_field(self, label, gadget):
+        self.field_container.addWidget(FieldControl.FieldDeclaration(self.view, label, gadget))
+        self.defined_fields[label] = gadget
 
     def delete_field(self, label):
         for i in range(self.field_container.count()):
             if self.field_container.itemAt(i).widget().label.value() == label:
                 self.field_container.itemAt(i).widget().setParent(None)
-        self.defined_fields[label].pop()
+                break
+        self.defined_fields.pop(label)
 
     def rename_field(self, old_label, new_label):
         for i in range(self.field_container.count()):
             if self.field_container.itemAt(i).widget().label.value() == old_label:
                 self.field_container.itemAt(i).widget().label.set_value(new_label)
-        self.defined_fields[new_label] = self.defined_fields[old_label].pop()
+        self.defined_fields[new_label] = self.defined_fields.pop(old_label)
+
+    # remove all field definitions
+    def clear(self):
+        while self.field_container.count() > 0:
+            self.field_container.itemAt(0).widget().setParent(None)
+        self.defined_fields = {}
 
     class FieldDeclaration(QWidget):
 
@@ -1068,7 +1082,7 @@ class FieldControl(QGroupBox):
             super(QWidget, self).__init__()
             self.view = view
 
-            self.label = EditableText(data=label_text, height=30, autoescape=True)
+            self.label = EditableText(data=label_text, autoescape=True)
             type_text = QLabel(edit_type)
             cancel_button = QPushButton("x")
             cancel_button.setFixedSize(15, 15)
@@ -1079,6 +1093,8 @@ class FieldControl(QGroupBox):
             h_layout.addWidget(type_text)
             h_layout.addWidget(cancel_button)
             self.setLayout(h_layout)
+
+            h_layout.setContentsMargins(0, 0, 0, 0)
 
             self.label.installEventFilter(self.view)
             type_text.installEventFilter(self.view)
@@ -1143,9 +1159,10 @@ class Editable(QStackedWidget):
             if self.autoset:
                 self.set_state(self.label.text(), label=False)
         else:
-            if self.autoescape and self.currentWidget() == self.edit:
-                self.focus_ended.emit()
+            currwid = self.currentWidget()
             self.setCurrentWidget(self.label)
+            if self.autoescape and currwid == self.edit:
+                self.focus_ended.emit()
             if self.autoset:
                 self.set_state(self.edit.text(), edit=False)
 

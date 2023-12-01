@@ -29,11 +29,19 @@ class Model(QObject):
     task_in_stage_changed = pyqtSignal(str, str)  # prev id, new id
     task_info_changed = pyqtSignal(str, dict)  # task id, all task values to be updated
     shelf_info_changed = pyqtSignal(str, dict)  # shelf id, all shelf values to be updated
-    new_model_loaded = pyqtSignal(str, list)  # stage, rack
-    field_added = pyqtSignal(str, type)  # label, field type
-    field_deleted = pyqtSignal(str)  # label
+    new_model_loaded = pyqtSignal(dict, str, list)  # fields, stage, rack
+    field_about_to_add = pyqtSignal(str, str)  # label, field gadget
+    field_about_to_delete = pyqtSignal(str)  # label
     field_data_copied = pyqtSignal(str, str)  # original label, copy label
-    field_renamed = pyqtSignal(str, str)  # old label, new label
+    field_about_to_rename = pyqtSignal(str, str)  # old label, new label
+
+    # conversion between field inputs and data types
+    gadget_to_type = {
+        "text": str,
+        "spin": float,
+        "check": bool,
+        "date": pd.Timestamp
+    }
 
     def __init__(self):
         super(QObject, self).__init__()
@@ -288,13 +296,13 @@ class Model(QObject):
                     kwargs[key] = pd.Timestamp(kwargs[key])
                 else:
                     return False, key + " must have type " + self.taskattributes[key].__name__
-            if kwargs[key] is not None and key in self.taskfields and not isinstance(kwargs[key],
-                                                                                     self.taskfields.get(key)):
+            if kwargs[key] is not None and key in self.taskfields \
+                    and not isinstance(kwargs[key], Model.gadget_to_type.get(self.taskfields[key])):
                 # convert types that need conversion
-                if self.taskfields.get(key) == pd.Timestamp:
+                if Model.gadget_to_type.get(self.taskfields[key]) == pd.Timestamp:
                     kwargs[key] = pd.Timestamp(kwargs[key])
                 else:
-                    return False, key + " must have type " + self.taskfields[key].__name__
+                    return False, key + " must have type " + Model.gadget_to_type.get(self.taskfields[key]).__name__
 
         # don't allow internal parameters to be modified
         if "seen" in kwargs:
@@ -384,7 +392,7 @@ class Model(QObject):
         self.nestmat.drop(index=shelf, inplace=True)
 
     # add a new field for tasks
-    def add_custom_field(self, label, f_type):
+    def add_custom_field(self, label, gadget):
         if label in self.taskfields.keys():
             return False, label + " is already a field"
         if label in self.taskattributes.keys():
@@ -392,10 +400,11 @@ class Model(QObject):
         if not label.isidentifier():
             return False, label + " is not a valid identifier"
 
-        self.taskfields[label] = f_type
+        self.field_about_to_add.emit(label, gadget)
+
+        self.taskfields[label] = gadget
         self.taskdf[label] = None
 
-        self.field_added.emit(label, f_type)
         return True, ""
 
     # delete a field from tasks
@@ -403,10 +412,11 @@ class Model(QObject):
         if label not in self.taskfields.keys():
             return False, label + " isn't an existing field"
 
+        self.field_about_to_delete.emit(label)
+
         self.taskfields.pop(label)
         self.taskdf.drop(columns=label, inplace=True)
 
-        self.field_deleted.emit(label)
         return True, ""
 
     # copy current task data for a field to another field
@@ -431,11 +441,15 @@ class Model(QObject):
             return False, new_l + " is an internal task attribute"
         if old_l not in self.taskfields.keys():
             return False, old_l + " isn't an existing field"
+        if not new_l.isidentifier():
+            return False, new_l + " is not a valid identifier"
+
+        self.field_about_to_rename.emit(old_l, new_l)
 
         self.taskfields[new_l] = self.taskfields.pop(old_l)
         self.taskdf.rename(columns={old_l: new_l}, inplace=True)
 
-        self.field_renamed.emit(old_l, new_l)
+
         return True, ""
 
     # sorter and filter methods should be rewritten to use pandas functionality
@@ -563,7 +577,7 @@ class Model(QObject):
         if len(self.taskfields) > 0:
             file.write(bytes("<fields>\n", 'utf-8'))
             for (k, v) in self.taskfields.items():
-                file.write(bytes("  <field>" + k + "=" + str(v) + "</field>\n", 'utf-8'))
+                file.write(bytes("  <field>" + k + " gadget=" + v + "</field>\n", 'utf-8'))
             file.write(bytes("</fields>\n", 'utf-8'))
         else:
             file.write(bytes("<fields/>\n", 'utf-8'))
@@ -635,7 +649,8 @@ class Model(QObject):
         if has_data["fields"]:
             fields_loc = re.search(re.compile(b"(?<=<fields>).*(?=</fields>)", flags=re.DOTALL), data).span()
             field_list = re.findall(re.compile(b"(?<=<field>)\n?.*\n?(?=</field>)"), data[fields_loc[0]:fields_loc[1]])
-            self.taskfields = {str(x, 'UTF-8').split("=")[0]:str(x, 'UTF-8').split("=")[1] for x in field_list}
+            self.taskfields = {str(x, 'UTF-8').split(" gadget=")[0] :
+                                   str(x, 'UTF-8').split(" gadget=")[1]for x in field_list}
 
         # open task dataframe
         if has_data["tasks"]:
@@ -671,4 +686,4 @@ class Model(QObject):
         else:
             self.nestmat = pd.DataFrame()
 
-        self.new_model_loaded.emit(self.stage if self.stage is not None else "", self.rack)
+        self.new_model_loaded.emit(self.taskfields, self.stage if self.stage is not None else "", self.rack)
