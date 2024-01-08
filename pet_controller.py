@@ -2,9 +2,10 @@ from PyQt5.QtCore import QObject, pyqtSlot, QProcess
 
 class PetController(QObject):
 
-    def __init__(self, model, shelf):
+    def __init__(self, exe_path, model, shelf):
         super().__init__()
 
+        self.exe_path = exe_path
         self.model = model
         self.pet_view = None
 
@@ -28,8 +29,10 @@ class PetController(QObject):
             self.p.readyReadStandardError.connect(self.handle_stderr)
             self.p.stateChanged.connect(self.handle_state)
             self.p.finished.connect(self.process_finished)
-            self.p.start('dist/pet_test/pet_test.exe')
+            self.p.setProgram(self.exe_path)
+            self.p.start()
 
+            # self.p.write(bytes('München ist wundervoll\n', 'utf-8'))
             # for i in range(5):
             #     to = input() + "\n"
             #     self.p.write(bytes(to, 'utf-8'))

@@ -21,7 +21,7 @@ class App(QApplication):
         self.view = View(self.controller)
         self.controller.register_view(self.view)
 
-        self.pet_controller = PetController(self.model, "s1")
+        self.pet_controller = PetController(sys_argv[1], self.model, "s1")
 
         self.view.show()
 
